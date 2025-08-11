@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Model for user accounts
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  scans     Scan[]   // A user can have many scans
+}
+
+// Model for each URL scan initiated by a user
+model Scan {
+  id        String   @id @default(cuid())
+  url       String
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  report    Report?  // Each scan will have one report
+}
+
+// Model to store the detailed results of a scan
+model Report {
+  id                  String   @id @default(cuid())
+  performanceScore    Int
+  accessibilityScore  Int
+  bestPracticesScore  Int
+  seoScore            Int
+  lighthouseResult    Json     // Stores the full Lighthouse JSON report
+  aiSuggestions       Json     // Stores structured suggestions from Gemini
+  createdAt           DateTime @default(now())
+  scanId              String   @unique
+  scan                Scan     @relation(fields: [scanId], references: [id])
+}
