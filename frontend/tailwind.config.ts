@@ -8,7 +8,6 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      // Map the CSS variables to Tailwind's color palette
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
