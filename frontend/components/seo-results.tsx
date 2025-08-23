@@ -2,8 +2,9 @@
 
 import { ExternalLink } from "lucide-react";
 import { TabsContainer } from "./seo-tabs";
+import type { Report } from "@/lib/types";
 
-export function SeoResults({ reportData }: { reportData: any }) {
+export function SeoResults({ reportData }: { reportData: Report }) {
   const results = reportData;
 
   // Check if the necessary data exists before proceeding.
@@ -21,7 +22,7 @@ export function SeoResults({ reportData }: { reportData: any }) {
     const parsedUrl = new URL(url);
     hostname = parsedUrl.hostname;
     displayUrl = url;
-  } catch (error) {
+  } catch {
     console.warn("Invalid URL received in report data:", url);
   }
 
@@ -30,7 +31,7 @@ export function SeoResults({ reportData }: { reportData: any }) {
       results.accessibilityScore +
       results.bestPracticesScore +
       results.seoScore) /
-      4
+    4
   );
 
   const getScoreColor = (score: number) => {
@@ -71,8 +72,8 @@ export function SeoResults({ reportData }: { reportData: any }) {
               {overallScore >= 90
                 ? "EXCELLENT"
                 : overallScore >= 50
-                ? "NEEDS WORK"
-                : "POOR"}
+                  ? "NEEDS WORK"
+                  : "POOR"}
             </div>
           </div>
         </div>

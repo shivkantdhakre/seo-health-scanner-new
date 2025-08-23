@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { initiateScan } from "@/lib/auth"; // Make sure you have this API utility
+import { initiateScan } from "@/lib/auth";
+import { validateUrl } from "@/lib/validation";
+import type { ScanData, ApiError } from "@/lib/types";
 
-// Step 1: Define the props interface for the component
 interface SeoFormProps {
-  onScanInitiated: (scanData: any) => void;
+  onScanInitiated: (scanData: ScanData) => void;
 }
 
 // Step 2: Use the props interface in the component definition
@@ -14,33 +14,45 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [lastScanTime, setLastScanTime] = useState<number>(0);
 
   const handleAnalyze = async () => {
-    if (!url) {
-      setError("Please enter a URL");
+    setError("");
+
+    // Rate limiting: prevent spam submissions (30 seconds between scans)
+    const now = Date.now();
+    const timeSinceLastScan = now - lastScanTime;
+    const minInterval = 30000; // 30 seconds
+
+    if (timeSinceLastScan < minInterval) {
+      const remainingTime = Math.ceil((minInterval - timeSinceLastScan) / 1000);
+      setError(`Please wait ${remainingTime} seconds before starting another scan.`);
       return;
     }
-    setError("");
-    setIsLoading(true);
 
-    let formattedUrl = url.trim();
-    if (
-      !formattedUrl.startsWith("http://") &&
-      !formattedUrl.startsWith("https://")
-    ) {
-      formattedUrl = `https://${formattedUrl}`;
+    // Validate URL input
+    const validation = validateUrl(url);
+    if (!validation.isValid) {
+      setError(validation.error || "Invalid URL");
+      return;
     }
 
+    setIsLoading(true);
+    setLastScanTime(now);
+
     try {
-      new URL(formattedUrl); // Validate URL
-      
-      // Step 3: Call the API and then the callback function
-      const scanData = await initiateScan(formattedUrl);
+      // Use the sanitized URL from validation
+      const scanData = await initiateScan(validation.sanitizedValue!);
       onScanInitiated(scanData);
 
     } catch (err) {
-      setError("Please enter a valid URL or API submission failed.");
-      console.error(err);
+      // Handle different types of errors
+      if (err && typeof err === 'object' && 'message' in err) {
+        setError((err as ApiError).message || "Failed to start scan. Please try again.");
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
+      console.error("Scan initiation error:", err);
     } finally {
       setIsLoading(false);
     }

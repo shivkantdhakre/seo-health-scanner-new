@@ -4,26 +4,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { SeoForm } from "@/components/seo-form";
-import { getScanHistory } from "@/lib/auth"; // API utility
-
-// Define types for scan and report
-interface Report {
-  id: string;
-  performanceScore: number;
-  seoScore: number;
-}
-
-interface Scan {
-  id: string;
-  url: string;
-  createdAt: string;
-  report: Report | null;
-}
+import { getScanHistory } from "@/lib/auth";
+import { LoadingSpinner } from "@/components/loading-spinner";
+import type { Scan, ScanData, ApiError } from "@/lib/types";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [scans, setScans] = useState<Scan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
   // Fetch scan history on component mount
   useEffect(() => {
@@ -31,10 +20,17 @@ export default function DashboardPage() {
       try {
         const historyData = await getScanHistory();
         setScans(historyData);
-      } catch (error) {
-        console.error("Failed to fetch scan history", error);
-        // Redirect to login if unauthorized or error occurs
-        router.push("/login");
+        setError(""); // Clear any previous errors
+      } catch (err) {
+        console.error("Failed to fetch scan history", err);
+        const apiError = err as ApiError;
+
+        if (apiError.status === 401) {
+          // Redirect to login if unauthorized
+          router.push("/login");
+        } else {
+          setError(apiError.message || "Failed to load scan history");
+        }
       } finally {
         setIsLoading(false);
       }
@@ -42,9 +38,9 @@ export default function DashboardPage() {
     fetchHistory();
   }, [router]);
 
-  const handleScanInitiated = (newScan: Scan) => {
+  const handleScanInitiated = (scanData: ScanData) => {
     // Redirect to the results page immediately after submission
-    router.push(`/results/${newScan.id}`);
+    router.push(`/results/${scanData.id}`);
   };
 
   return (
@@ -60,8 +56,15 @@ export default function DashboardPage() {
         {/* Display Scan History */}
         <div className="mt-12">
           <h2 className="text-3xl font-bold mb-6">Scan History</h2>
+          {error && (
+            <div className="neo-card bg-red-50 border-red-500 mb-6">
+              <p className="text-red-700 font-bold">{error}</p>
+            </div>
+          )}
           {isLoading ? (
-            <p>Loading history...</p>
+            <div className="neo-card bg-white text-center p-8">
+              <LoadingSpinner message="Loading scan history..." />
+            </div>
           ) : scans.length > 0 ? (
             <div className="space-y-4">
               {scans.map((scan) => (

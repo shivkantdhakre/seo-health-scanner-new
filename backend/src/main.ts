@@ -7,13 +7,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: 'http://localhost:3000', // Your frontend URL
+    origin: ['http://localhost:3000', 'http://localhost:3002'], // Support both frontend ports
     credentials: true,
   });
 
   // Now this line will work correctly
   app.use(cookieParser());
-  
+
   await app.listen(3001);
 }
 bootstrap();

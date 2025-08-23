@@ -1,16 +1,33 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'SEO Health Scanner - Free Website SEO Analysis Tool',
+  description: 'Analyze your website for SEO issues and get AI-powered recommendations for improvement. Free SEO audit tool with Lighthouse integration.',
+  keywords: ['SEO', 'website analysis', 'SEO audit', 'Lighthouse', 'AI recommendations', 'website optimization'],
+  openGraph: {
+    title: 'SEO Health Scanner - Free Website SEO Analysis',
+    description: 'Get AI-powered insights to boost your website performance with our free SEO analysis tool.',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SEO Health Scanner - Free Website SEO Analysis',
+    description: 'Get AI-powered insights to boost your website performance with our free SEO analysis tool.',
+  },
+};
 
 export default function HomePage() {
   return (
     <main className="min-h-screen p-4 md:p-8 bg-[#ffe26d] flex items-center justify-center">
       <div className="w-full max-w-2xl mx-auto text-center">
-        
+
         <div className="mb-12 space-y-2">
           <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase">
             SEO Health Scanner
           </h1>
           <p className="text-xl font-bold">
-            Get AI-powered insights to boost your website's performance.
+            Get AI-powered insights to boost your website&apos;s performance.
           </p>
         </div>
 

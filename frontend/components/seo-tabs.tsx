@@ -4,8 +4,10 @@ import React from "react";
 import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { useState } from "react";
 
+import type { AISuggestions } from "@/lib/types";
+
 // Add a check to ensure results and its properties exist.
-export function TabsContainer({ results }: { results?: any }) {
+export function TabsContainer({ results }: { results?: AISuggestions }) {
   const [activeTab, setActiveTab] = useState("issues");
 
   // If there are no results from the AI, display a message.
@@ -28,25 +30,22 @@ export function TabsContainer({ results }: { results?: any }) {
     <div className="neo-card bg-white -rotate-1">
       <div className="tabs flex border-b-4 border-black">
         <button
-          className={`tab-button py-3 px-6 font-bold text-lg uppercase ${
-            activeTab === "issues" ? "bg-[#FF5757] text-white" : ""
-          } neo-border border-b-0 -mb-[4px]`}
+          className={`tab-button py-3 px-6 font-bold text-lg uppercase ${activeTab === "issues" ? "bg-[#FF5757] text-white" : ""
+            } neo-border border-b-0 -mb-[4px]`}
           onClick={() => setActiveTab("issues")}
         >
           Issues ({issues.length})
         </button>
         <button
-          className={`tab-button py-3 px-6 font-bold text-lg uppercase ${
-            activeTab === "recommendations" ? "bg-[#FF5757] text-white" : ""
-          }`}
+          className={`tab-button py-3 px-6 font-bold text-lg uppercase ${activeTab === "recommendations" ? "bg-[#FF5757] text-white" : ""
+            }`}
           onClick={() => setActiveTab("recommendations")}
         >
           Recommendations
         </button>
         <button
-          className={`tab-button py-3 px-6 font-bold text-lg uppercase ${
-            activeTab === "details" ? "bg-[#FF5757] text-white" : ""
-          }`}
+          className={`tab-button py-3 px-6 font-bold text-lg uppercase ${activeTab === "details" ? "bg-[#FF5757] text-white" : ""
+            }`}
           onClick={() => setActiveTab("details")}
         >
           Details
@@ -125,80 +124,79 @@ export function TabsContainer({ results }: { results?: any }) {
 
 // ... (IssueCard and RecommendationCard components remain the same) ...
 function IssueCard({
-    issue,
-    rotation,
-  }: {
-    issue: {
-      title: string;
-      description: string;
-      severity: "high" | "medium" | "low";
-    };
-    rotation: string;
-  }) {
-    const severityIcon = {
-      high: <XCircle className="h-6 w-6 text-[#FF5757]" />,
-      medium: <AlertCircle className="h-6 w-6 text-[#FFB300]" />,
-      low: <AlertCircle className="h-6 w-6 text-[#3D5AFE]" />,
-    };
-  
-    const severityBg = {
-      high: "bg-[#FF5757]",
-      medium: "bg-[#FFB300]",
-      low: "bg-[#3D5AFE]",
-    };
-  
-    return (
-      <div className={`neo-card ${rotation}`}>
-        <div className="flex items-start gap-4 mb-3">
-          {severityIcon[issue.severity]}
-          <div>
-            <h3 className="text-xl font-bold">{issue.title}</h3>
-            <div
-              className={`neo-badge ${
-                severityBg[issue.severity]
-              } text-white mt-1`}
-            >
-              {issue.severity.toUpperCase()} PRIORITY
-            </div>
-          </div>
-        </div>
-        <p className="font-medium">{issue.description}</p>
-      </div>
-    );
-  }
-  
-  function RecommendationCard({
-    recommendation,
-    rotation,
-  }: {
-    recommendation: {
-      title: string;
-      description: string;
-      impact: "high" | "medium" | "low";
-    };
-    rotation: string;
-  }) {
-    const impactBg = {
-      high: "bg-[#00C853]",
-      medium: "bg-[#3D5AFE]",
-      low: "bg-[#757575]",
-    };
-  
-    return (
-      <div className={`neo-card ${rotation}`}>
-        <div className="flex justify-between items-start mb-3">
-          <h3 className="text-xl font-bold">{recommendation.title}</h3>
+  issue,
+  rotation,
+}: {
+  issue: {
+    title: string;
+    description: string;
+    severity: "high" | "medium" | "low";
+  };
+  rotation: string;
+}) {
+  const severityIcon = {
+    high: <XCircle className="h-6 w-6 text-[#FF5757]" />,
+    medium: <AlertCircle className="h-6 w-6 text-[#FFB300]" />,
+    low: <AlertCircle className="h-6 w-6 text-[#3D5AFE]" />,
+  };
+
+  const severityBg = {
+    high: "bg-[#FF5757]",
+    medium: "bg-[#FFB300]",
+    low: "bg-[#3D5AFE]",
+  };
+
+  return (
+    <div className={`neo-card ${rotation}`}>
+      <div className="flex items-start gap-4 mb-3">
+        {severityIcon[issue.severity]}
+        <div>
+          <h3 className="text-xl font-bold">{issue.title}</h3>
           <div
-            className={`neo-badge ${impactBg[recommendation.impact]} text-white`}
+            className={`neo-badge ${severityBg[issue.severity]
+              } text-white mt-1`}
           >
-            {recommendation.impact.toUpperCase()} IMPACT
+            {issue.severity.toUpperCase()} PRIORITY
           </div>
         </div>
-        <p className="font-medium">{recommendation.description}</p>
       </div>
-    );
-  }
-  
+      <p className="font-medium">{issue.description}</p>
+    </div>
+  );
+}
+
+function RecommendationCard({
+  recommendation,
+  rotation,
+}: {
+  recommendation: {
+    title: string;
+    description: string;
+    impact: "high" | "medium" | "low";
+  };
+  rotation: string;
+}) {
+  const impactBg = {
+    high: "bg-[#00C853]",
+    medium: "bg-[#3D5AFE]",
+    low: "bg-[#757575]",
+  };
+
+  return (
+    <div className={`neo-card ${rotation}`}>
+      <div className="flex justify-between items-start mb-3">
+        <h3 className="text-xl font-bold">{recommendation.title}</h3>
+        <div
+          className={`neo-badge ${impactBg[recommendation.impact]} text-white`}
+        >
+          {recommendation.impact.toUpperCase()} IMPACT
+        </div>
+      </div>
+      <p className="font-medium">{recommendation.description}</p>
+    </div>
+  );
+}
+
 
 // THE FIX IS HERE: Provide a default empty array for the 'items' prop.
 function DetailSection({
