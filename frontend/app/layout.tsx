@@ -2,6 +2,8 @@ import type React from "react";
 import "./globals.css";
 import type { Metadata } from "next";
 import { Space_Grotesk } from "next/font/google";
+import { ErrorBoundary } from "@/components/error-boundary";
+import Providers from "./providers";
 // import { ErrorBoundary } from "@/components/error-boundary";
 
 const spaceGrotesk = Space_Grotesk({
@@ -33,9 +35,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      {/* The "children" prop here will be replaced by the content of the currently active page */}
       <body className={spaceGrotesk.className}>
-        {children}
+        <Providers>
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
+        </Providers>
       </body>
     </html>
   );

@@ -6,6 +6,7 @@ export interface Report {
   accessibilityScore: number;
   bestPracticesScore: number;
   seoScore: number;
+  url?: string; // The originally scanned URL
   lighthouseResult: {
     finalUrl: string;
     categories: LighthouseCategories;
@@ -14,9 +15,12 @@ export interface Report {
   aiSuggestions: AISuggestions;
 }
 
+export type ScanStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+
 export interface Scan {
   id: string;
   url: string;
+  status: ScanStatus;
   createdAt: string;
   report: Report | null;
 }

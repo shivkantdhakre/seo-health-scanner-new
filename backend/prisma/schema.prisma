@@ -19,12 +19,23 @@ model User {
 
 // Model for each URL scan initiated by a user
 model Scan {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   url       String
-  createdAt DateTime @default(now())
+  status    ScanStatus @default(PENDING)
+  createdAt DateTime   @default(now())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  report    Report?  // Each scan will have one report
+  user      User       @relation(fields: [userId], references: [id])
+  report    Report?    // Each scan will have one report
+
+  @@index([status])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+enum ScanStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 // Model to store the detailed results of a scan

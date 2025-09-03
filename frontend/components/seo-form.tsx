@@ -1,31 +1,56 @@
 "use client";
 
-import { useState } from "react";
-import { initiateScan } from "@/lib/auth";
+import { useState, useCallback, useEffect } from "react";
 import { validateUrl } from "@/lib/validation";
-import type { ScanData, ApiError } from "@/lib/types";
+import { useInitiateScan, MIN_SCAN_INTERVAL } from "@/lib/hooks/useInitiateScan";
+import type { ScanData } from "@/lib/types";
+import { useDebugValue } from 'react';
 
 interface SeoFormProps {
   onScanInitiated: (scanData: ScanData) => void;
 }
 
-// Step 2: Use the props interface in the component definition
 export function SeoForm({ onScanInitiated }: SeoFormProps) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [lastScanTime, setLastScanTime] = useState<number>(0);
 
-  const handleAnalyze = async () => {
+  const {
+    mutate: initiateScan,
+    isPending,
+    error: mutationError,
+    status,
+    failureCount,
+  } = useInitiateScan();
+
+  // Debug values for React DevTools
+  useDebugValue({ url, status, error, lastScanTime });
+
+  // Log important state changes
+  useEffect(() => {
+    if (mutationError) {
+      console.debug('[SeoForm] Mutation error:', {
+        error: mutationError,
+        failureCount,
+        url
+      });
+    }
+  }, [mutationError, failureCount, url]);
+
+  const handleAnalyze = useCallback(() => {
+    console.debug('[SeoForm] Starting analysis:', {
+      url,
+      lastScanTime,
+      timeSinceLastScan: Date.now() - lastScanTime
+    });
     setError("");
 
-    // Rate limiting: prevent spam submissions (30 seconds between scans)
+    // Rate limiting: prevent spam submissions
     const now = Date.now();
     const timeSinceLastScan = now - lastScanTime;
-    const minInterval = 30000; // 30 seconds
 
-    if (timeSinceLastScan < minInterval) {
-      const remainingTime = Math.ceil((minInterval - timeSinceLastScan) / 1000);
+    if (timeSinceLastScan < MIN_SCAN_INTERVAL) {
+      const remainingTime = Math.ceil((MIN_SCAN_INTERVAL - timeSinceLastScan) / 1000);
       setError(`Please wait ${remainingTime} seconds before starting another scan.`);
       return;
     }
@@ -37,26 +62,17 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
       return;
     }
 
-    setIsLoading(true);
-    setLastScanTime(now);
-
-    try {
-      // Use the sanitized URL from validation
-      const scanData = await initiateScan(validation.sanitizedValue!);
-      onScanInitiated(scanData);
-
-    } catch (err) {
-      // Handle different types of errors
-      if (err && typeof err === 'object' && 'message' in err) {
-        setError((err as ApiError).message || "Failed to start scan. Please try again.");
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-      console.error("Scan initiation error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // Use React Query mutation
+    initiateScan(validation.sanitizedValue!, {
+      onSuccess: (scanData) => {
+        setLastScanTime(now);
+        onScanInitiated(scanData);
+      },
+      onError: (error) => {
+        setError(error.message || "Failed to start scan. Please try again.");
+      },
+    });
+  }, [url, lastScanTime, initiateScan, onScanInitiated]);
 
   return (
     <div className="neo-card -rotate-1 bg-white">
@@ -72,17 +88,50 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
             className="neo-input flex-1 text-lg"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            disabled={isLoading}
+            disabled={isPending}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !isPending) {
+                handleAnalyze();
+              }
+            }}
           />
           <button
             onClick={handleAnalyze}
-            className="neo-button bg-[#FF5757] text-lg uppercase"
-            disabled={isLoading}
+            className={`neo-button text-lg uppercase transition-colors ${isPending
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-[#FF5757] hover:bg-[#FF4242]'
+              }`}
+            disabled={isPending}
+            aria-busy={isPending}
           >
-            {isLoading ? "Analyzing..." : "Analyze SEO"}
+            {isPending ? "Analyzing..." : "Analyze SEO"}
           </button>
         </div>
-        {error && <p className="text-[#FF5757] font-bold mt-2">{error}</p>}
+        {error && (
+          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-[#FF5757] font-bold flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0-1A6 6 0 1 0 8 2a6 6 0 0 0 0 12z" />
+                <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z" />
+              </svg>
+              {error}
+            </p>
+            {mutationError && failureCount > 0 && (
+              <p className="text-sm text-red-600 mt-1">
+                Attempt {failureCount} failed. {
+                  failureCount >= 3 ? 'Please try again later or contact support if the issue persists.' : ''
+                }
+              </p>
+            )}
+          </div>
+        )}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 p-2 bg-gray-100 rounded text-xs font-mono">
+            <div>Status: {status}</div>
+            <div>Last scan: {lastScanTime ? new Date(lastScanTime).toLocaleString() : 'Never'}</div>
+            <div>URL: {url || 'Not set'}</div>
+          </div>
+        )}
       </div>
     </div>
   );
