@@ -76,7 +76,7 @@ export class CoreService {
       }
 
       return response.data;
-    } catch (error) {
+    } catch (error:any) {
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
         console.error('Timeout fetching Lighthouse report:', error.message);
         throw new Error('Request timed out while fetching Lighthouse report.');
@@ -124,7 +124,8 @@ export class CoreService {
     const genAI = new GoogleGenerativeAI(this.geminiApiKey);
 
     // THE FIX IS HERE: Use the updated model name
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
     const { categories } = lighthouseData.lighthouseResult;
 
@@ -251,7 +252,7 @@ export class CoreService {
         };
 
         return validatedSuggestions;
-      } catch (parseError) {
+      } catch (parseError:any) {
         console.error('JSON Parse Error:', {
           error: parseError,
           receivedText: text,
@@ -259,7 +260,7 @@ export class CoreService {
         });
         throw new Error('Failed to parse AI response as JSON');
       }
-    } catch (error) {
+    } catch (error:any) {
       console.error('Error generating Gemini suggestions:', {
         error,
         message: error.message,
