@@ -7,7 +7,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3002'], // Support both frontend ports
+    origin: ['http://localhost:3000', 'http://localhost:3002','https://seo-scanner-frontend.onrender.com'], // Support both frontend ports
     credentials: true,
   });
 
