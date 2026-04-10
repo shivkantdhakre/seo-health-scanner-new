@@ -1,12 +1,12 @@
-import { 
-  Controller, 
-  Post, 
-  Body, 
-  Res, 
-  Get, 
-  UseGuards, 
-  Req, 
-  UnauthorizedException // Import UnauthorizedException
+import {
+  Controller,
+  Post,
+  Body,
+  Res,
+  Get,
+  UseGuards,
+  Req,
+  UnauthorizedException, // Import UnauthorizedException
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import type { Response } from 'express';
@@ -18,7 +18,10 @@ export class AuthController {
 
   @Post('signup')
   async signup(@Body() body, @Res({ passthrough: true }) response: Response) {
-    const { access_token } = await this.authService.signup(body.email, body.password);
+    const { access_token } = await this.authService.signup(
+      body.email,
+      body.password,
+    );
     response.cookie('jwt', access_token, { httpOnly: true });
     return { message: 'Signup successful' };
   }
@@ -26,7 +29,7 @@ export class AuthController {
   @Post('login')
   async login(@Body() body, @Res({ passthrough: true }) response: Response) {
     const user = await this.authService.validateUser(body.email, body.password);
-    
+
     // This is the updated logic.
     // If the user is not found or password doesn't match, throw a 401 error.
     if (!user) {
@@ -34,7 +37,12 @@ export class AuthController {
     }
 
     const { access_token } = await this.authService.login(user);
-    response.cookie('jwt', access_token, { httpOnly: true });
+    // response.cookie('jwt', access_token, { httpOnly: true });
+    response.cookie('jwt', access_token, {
+      httpOnly: true,
+      secure: true, // Required for cross-domain cookies (HTTPS)
+      sameSite: 'none', // Tells the browser it's okay to send across different domains
+    });
     return { message: 'Login successful' };
   }
 
