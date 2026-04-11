@@ -22,7 +22,14 @@ export class AuthController {
       body.email,
       body.password,
     );
-    response.cookie('jwt', access_token, { httpOnly: true });
+    
+    // UPDATE THIS LINE TO MATCH LOGIN
+    response.cookie('jwt', access_token, {
+      httpOnly: true,
+      secure: true, 
+      sameSite: 'none', 
+    });
+    
     return { message: 'Signup successful' };
   }
 
