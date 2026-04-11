@@ -46,6 +46,17 @@ export class AuthController {
     return { message: 'Login successful' };
   }
 
+  @Post('logout')
+  logout(@Res({ passthrough: true }) response: Response) {
+    // Clear the cookie using the exact same settings used to create it
+    response.clearCookie('jwt', { 
+      httpOnly: true,
+      secure: true, 
+      sameSite: 'none' 
+    });
+    return { message: 'Logged out successfully' };
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   getProfile(@Req() req) {

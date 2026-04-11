@@ -3,8 +3,9 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Space_Grotesk } from "next/font/google";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { AuthProvider } from "@/lib/AuthContext";
 import Providers from "./providers";
-// import { ErrorBoundary } from "@/components/error-boundary";
+import Navbar from "@/components/Navbar"; // Import the Navbar we created
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -13,7 +14,6 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 // This metadata object defines the default title and description for all pages.
-// It's great for SEO and for what users see in their browser tabs.
 export const metadata: Metadata = {
   title: "SEO Health Scanner - Check Your Website's SEO",
   description:
@@ -36,10 +36,23 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={spaceGrotesk.className}>
+        {/* Providers (like React Query) wrap everything */}
         <Providers>
-          <ErrorBoundary>
-            {children}
-          </ErrorBoundary>
+          {/* AuthProvider wraps the UI so Navbar and pages know who is logged in */}
+          <AuthProvider>
+            {/* ErrorBoundary catches client-side crashes */}
+            <ErrorBoundary>
+
+              {/* Navbar sits above all page content */}
+              <Navbar />
+
+              {/* The actual page content loads here */}
+              <main>
+                {children}
+              </main>
+
+            </ErrorBoundary>
+          </AuthProvider>
         </Providers>
       </body>
     </html>

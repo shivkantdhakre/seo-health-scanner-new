@@ -84,3 +84,14 @@ export const signupUser = async (
     throw error;
   }
 };
+
+// Fetch the current logged-in user's profile
+export const getUserProfile = async () => {
+  const response = await api.get("/auth/profile");
+  return response.data;
+};
+
+// Log the user out
+export const logoutUser = async (): Promise<void> => {
+  await api.post("/auth/logout");
+};
