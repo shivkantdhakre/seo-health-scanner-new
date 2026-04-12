@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useDebugValue } from "react";
+import { useRouter } from "next/navigation"; // Added router for redirects
 import { validateUrl } from "@/lib/validation";
 import { useInitiateScan, MIN_SCAN_INTERVAL } from "@/lib/hooks/useInitiateScan";
+import { useAuth } from "@/lib/AuthContext"; // Added global auth state
 import type { ScanData } from "@/lib/types";
-import { useDebugValue } from 'react';
 
 interface SeoFormProps {
   onScanInitiated: (scanData: ScanData) => void;
@@ -15,6 +16,9 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
   const [error, setError] = useState("");
   const [lastScanTime, setLastScanTime] = useState<number>(0);
 
+  const router = useRouter();
+  const { user, isLoading: isAuthLoading } = useAuth(); // Hook into auth context
+
   const {
     mutate: initiateScan,
     isPending,
@@ -24,7 +28,7 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
   } = useInitiateScan();
 
   // Debug values for React DevTools
-  useDebugValue({ url, status, error, lastScanTime });
+  useDebugValue({ url, status, error, lastScanTime, isAuthenticated: !!user });
 
   // Log important state changes
   useEffect(() => {
@@ -45,7 +49,13 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
     });
     setError("");
 
-    // Rate limiting: prevent spam submissions
+    // 1. AUTHENTICATION CHECK: Prevent unauthenticated scans
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    // 2. Rate limiting: prevent spam submissions
     const now = Date.now();
     const timeSinceLastScan = now - lastScanTime;
 
@@ -55,14 +65,14 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
       return;
     }
 
-    // Validate URL input
+    // 3. Validate URL input
     const validation = validateUrl(url);
     if (!validation.isValid) {
       setError(validation.error || "Invalid URL");
       return;
     }
 
-    // Use React Query mutation
+    // 4. Use React Query mutation
     initiateScan(validation.sanitizedValue!, {
       onSuccess: (scanData) => {
         setLastScanTime(now);
@@ -72,7 +82,10 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
         setError(error.message || "Failed to start scan. Please try again.");
       },
     });
-  }, [url, lastScanTime, initiateScan, onScanInitiated]);
+  }, [url, lastScanTime, initiateScan, onScanInitiated, user, router]);
+
+  // Combine loading states to prevent input while resolving auth or scanning
+  const isDisabled = isPending || isAuthLoading;
 
   return (
     <div className="neo-card -rotate-1 bg-white">
@@ -88,23 +101,24 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
             className="neo-input flex-1 text-lg"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            disabled={isPending}
+            disabled={isDisabled}
             onKeyPress={(e) => {
-              if (e.key === 'Enter' && !isPending) {
+              if (e.key === 'Enter' && !isDisabled) {
                 handleAnalyze();
               }
             }}
           />
           <button
             onClick={handleAnalyze}
-            className={`neo-button text-lg uppercase transition-colors ${isPending
+            className={`neo-button text-lg uppercase transition-colors ${
+              isDisabled
                 ? 'bg-gray-400 cursor-not-allowed'
                 : 'bg-[#FF5757] hover:bg-[#FF4242]'
-              }`}
-            disabled={isPending}
-            aria-busy={isPending}
+            }`}
+            disabled={isDisabled}
+            aria-busy={isDisabled}
           >
-            {isPending ? "Analyzing..." : "Analyze SEO"}
+            {isAuthLoading ? "Loading..." : isPending ? "Analyzing..." : "Analyze SEO"}
           </button>
         </div>
         {error && (
@@ -128,6 +142,7 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
         {process.env.NODE_ENV === 'development' && (
           <div className="mt-4 p-2 bg-gray-100 rounded text-xs font-mono">
             <div>Status: {status}</div>
+            <div>Auth: {user ? 'Logged in' : 'Not logged in'}</div>
             <div>Last scan: {lastScanTime ? new Date(lastScanTime).toLocaleString() : 'Never'}</div>
             <div>URL: {url || 'Not set'}</div>
           </div>

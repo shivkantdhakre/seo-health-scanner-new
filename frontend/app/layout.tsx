@@ -14,10 +14,12 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 // This metadata object defines the default title and description for all pages.
+// It is great for SEO and for what users see when sharing links on social media.
 export const metadata: Metadata = {
-  title: "SEO Health Scanner - Check Your Website's SEO",
+  title: "SEO Health Scanner - Free Website SEO Analysis Tool",
   description:
-    "Analyze your website for SEO issues and get AI-powered recommendations for improvement.",
+    "Analyze your website for SEO issues and get AI-powered recommendations for improvement. Free SEO audit tool with Lighthouse integration.",
+  keywords: ['SEO', 'website analysis', 'SEO audit', 'Lighthouse', 'AI recommendations', 'website optimization'],
   metadataBase: new URL('https://seo-health-scanner.com'), // Update with your actual domain
   robots: {
     index: true,
@@ -25,6 +27,16 @@ export const metadata: Metadata = {
   },
   verification: {
     google: 'your-google-verification-code', // Add your Google Search Console verification
+  },
+  openGraph: {
+    title: 'SEO Health Scanner - Free Website SEO Analysis',
+    description: 'Get AI-powered insights to boost your website performance with our free SEO analysis tool.',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SEO Health Scanner - Free Website SEO Analysis',
+    description: 'Get AI-powered insights to boost your website performance with our free SEO analysis tool.',
   },
 };
 
