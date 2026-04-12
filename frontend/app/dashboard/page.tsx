@@ -80,9 +80,11 @@ export default function DashboardPage() {
                   </div>
                   <button
                     onClick={() => router.push(`/results/${scan.id}`)}
-                    className="neo-button bg-blue-500"
+                    className={`neo-button ${scan.status === 'COMPLETED' ? 'bg-[#FFDE59]' : 'bg-gray-200 text-gray-500'}`}
+                    disabled={scan.status !== 'COMPLETED'}
                   >
-                    {scan.report ? "View Report" : "Processing..."}
+                    {scan.status === 'COMPLETED' ? "View Report" :
+                      scan.status === 'FAILED' ? "Scan Failed" : "Processing..."}
                   </button>
                 </div>
               ))}
