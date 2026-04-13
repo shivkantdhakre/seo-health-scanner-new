@@ -1,15 +1,21 @@
+// backend/src/report/report.module.ts
 import { Module } from '@nestjs/common';
-import { ReportService } from './report.service';
+import { BullModule } from '@nestjs/bullmq'; // <-- Import this
 import { ReportController } from './report.controller';
-import { CoreModule } from '../core/core.module';
+import { ReportService } from './report.service';
+import { ReportProcessor } from './report.processor'; // <-- We will create this next
 import { PrismaService } from '../prisma/prisma.service';
+import { CoreModule } from '../core/core.module';
 
 @Module({
-  // Import other modules whose exported providers are needed here
-  imports: [CoreModule],
-  // Register the controller that will handle this module's routes
+  imports: [
+    CoreModule,
+    // Register the specific queue name
+    BullModule.registerQueue({
+      name: 'scan-queue',
+    }),
+  ],
   controllers: [ReportController],
-  // Register the services that will be used within this module
-  providers: [ReportService, PrismaService],
+  providers: [ReportService, ReportProcessor, PrismaService], // Add ReportProcessor here
 })
 export class ReportModule {}
