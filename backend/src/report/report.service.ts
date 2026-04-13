@@ -1,7 +1,9 @@
 // report.service.ts
 // This service handles the core logic of the application.
 
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
 import { CoreService } from '../core/core.service';
 import { Prisma, User, ScanStatus } from '@prisma/client';
@@ -17,6 +19,7 @@ export class ReportService {
   constructor(
     private prisma: PrismaService,
     private coreService: CoreService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   /**
@@ -106,7 +109,9 @@ export class ReportService {
   /**
    * Converts a Lighthouse score to a status string
    */
-  private scoreToStatus(score: number | null | undefined): 'good' | 'warning' | 'bad' | 'na' {
+  private scoreToStatus(
+    score: number | null | undefined,
+  ): 'good' | 'warning' | 'bad' | 'na' {
     if (score === null || score === undefined) return 'na';
     if (typeof score !== 'number' || isNaN(score)) return 'bad';
     if (score >= 0.9) return 'good';
@@ -117,7 +122,10 @@ export class ReportService {
   /**
    * Safely gets an audit value and handles missing or malformed data
    */
-  private getAuditValue(audits: Record<string, any>, keys: string | string[]): any {
+  private getAuditValue(
+    audits: Record<string, any>,
+    keys: string | string[],
+  ): any {
     const keyArray = Array.isArray(keys) ? keys : [keys];
     for (const key of keyArray) {
       const audit = audits[key];
@@ -142,10 +150,11 @@ export class ReportService {
     if (fcp) {
       technicalDetails.push({
         name: 'First Contentful Paint',
-        value: typeof fcp.numericValue === 'number' 
-          ? `${(fcp.numericValue / 1000).toFixed(2)}s`
-          : 'N/A',
-        status: this.scoreToStatus(fcp.score)
+        value:
+          typeof fcp.numericValue === 'number'
+            ? `${(fcp.numericValue / 1000).toFixed(2)}s`
+            : 'N/A',
+        status: this.scoreToStatus(fcp.score),
       });
     }
 
@@ -154,8 +163,8 @@ export class ReportService {
       'meta-description': 'Meta Description',
       'meta-viewport': 'Viewport Meta Tag',
       'robots-txt': 'Robots.txt',
-      'canonical': 'Canonical URL',
-      'hreflang': 'hreflang Tags',
+      canonical: 'Canonical URL',
+      hreflang: 'hreflang Tags',
       'is-crawlable': 'Crawlability',
       'crawlable-anchors': 'Crawlable Anchors',
     };
@@ -166,7 +175,7 @@ export class ReportService {
         metaTagsDetails.push({
           name: displayName,
           value: audit.displayValue ?? audit.title ?? 'N/A',
-          status: this.scoreToStatus(audit.score)
+          status: this.scoreToStatus(audit.score),
         });
       }
     });
@@ -187,7 +196,7 @@ export class ReportService {
         contentDetails.push({
           name,
           value: audit.title || audit.displayValue || 'N/A',
-          status: this.scoreToStatus(audit.score)
+          status: this.scoreToStatus(audit.score),
         });
       }
     });
@@ -232,37 +241,65 @@ export class ReportService {
   private async runAnalysis(scanId: string, url: string) {
     console.debug('[ReportService] Starting analysis:', { scanId, url });
     try {
-      // Update status to processing
+      // 1. Update status to processing
       await this.prisma.scan.update({
         where: { id: scanId },
         data: { status: ScanStatus.PROCESSING },
       });
 
-      console.debug('[ReportService] Updated status to PROCESSING');
+      // 2. Normalize the URL for the cache key (removes trailing slashes)
+      const normalizedUrl = url.replace(/\/$/, '').toLowerCase();
+      const cacheKey = `seo_report_${normalizedUrl}`;
 
-      // Step 1: Fetch Lighthouse data from Google PageSpeed Insights API
+      // 3. CHECK THE CACHE FIRST (The SaaS Magic)
+      // FIX: Removed the generic <any> which breaks in cache-manager v6, explicitly cast to `any`
+      const cachedReport = (await this.cacheManager.get(cacheKey)) as any;
+
+      if (cachedReport) {
+        console.log(
+          `🚀 CACHE HIT! Reusing recent report for ${normalizedUrl} (Saved Google/Gemini Quota)`,
+        );
+
+        // Immediately save the cached data to the new user's scan
+        await this.prisma.$transaction([
+          this.prisma.report.create({
+            data: {
+              scanId,
+              performanceScore: cachedReport.performanceScore,
+              accessibilityScore: cachedReport.accessibilityScore,
+              bestPracticesScore: cachedReport.bestPracticesScore,
+              seoScore: cachedReport.seoScore,
+              // FIX: Explicitly tell Prisma this is valid JSON
+              lighthouseResult: cachedReport.lighthouseResult as unknown as Prisma.InputJsonValue,
+              aiSuggestions: cachedReport.aiSuggestions as unknown as Prisma.InputJsonValue,
+            },
+          }),
+          this.prisma.scan.update({
+            where: { id: scanId },
+            data: { status: ScanStatus.COMPLETED },
+          }),
+        ]);
+        return; // Exit early! No APIs called.
+      }
+
+      console.log(
+        `🐌 CACHE MISS! Running full Lighthouse & Gemini audit for ${normalizedUrl}...`,
+      );
+
+      // --- EXPENSIVE API CALLS BEGIN ---
       const lighthouseData = await this.coreService.getLighthouseReport(url);
       if (!lighthouseData) {
         throw new Error('Failed to fetch Lighthouse report.');
       }
 
-      // Step 2: Generate AI-powered improvement suggestions using Gemini
       let aiSuggestions: GeminiSuggestions;
       try {
         aiSuggestions =
           await this.coreService.getGeminiSuggestions(lighthouseData);
-        console.debug('[ReportService] Successfully generated AI suggestions');
       } catch (error) {
-        console.error('[ReportService] Error generating AI suggestions:', {
-          error: error.message,
-          scanId,
-          fallback: 'Using basic analysis',
-        });
-        // Create basic suggestions from Lighthouse data
         aiSuggestions = this.createBasicSuggestions(lighthouseData);
       }
 
-      // Step 3: Extract key scores from the Lighthouse report
       const { categories } = lighthouseData.lighthouseResult;
       const performanceScore = Math.round(categories.performance.score * 100);
       const accessibilityScore = Math.round(
@@ -272,18 +309,25 @@ export class ReportService {
         categories['best-practices'].score * 100,
       );
       const seoScore = Math.round(categories.seo.score * 100);
+      // --- EXPENSIVE API CALLS END ---
 
-      // Step 4: Store the complete report and update status in a transaction
+      // Create the object we want to save
+      const finalReportData = {
+        // FIX: Explicitly cast to Prisma.InputJsonValue for strict typing
+        lighthouseResult: lighthouseData as unknown as Prisma.InputJsonValue,
+        aiSuggestions: aiSuggestions as unknown as Prisma.InputJsonValue,
+        performanceScore,
+        accessibilityScore,
+        bestPracticesScore,
+        seoScore,
+      };
+
+      // 4. Save to Database
       await this.prisma.$transaction([
         this.prisma.report.create({
           data: {
             scanId,
-            performanceScore,
-            accessibilityScore,
-            bestPracticesScore,
-            seoScore,
-            lighthouseResult: lighthouseData,
-            aiSuggestions: aiSuggestions as unknown as Prisma.InputJsonValue,
+            ...finalReportData,
           },
         }),
         this.prisma.scan.update({
@@ -292,24 +336,14 @@ export class ReportService {
         }),
       ]);
 
-      console.debug('[ReportService] Analysis completed:', {
-        scanId,
-        scores: {
-          performance: performanceScore,
-          accessibility: accessibilityScore,
-          bestPractices: bestPracticesScore,
-          seo: seoScore,
-        },
-      });
-
-      console.log(`Analysis complete for scan ID: ${scanId}`);
+      // 5. SAVE TO CACHE FOR NEXT TIME (Expires in 24 hours / 86400000ms)
+      await this.cacheManager.set(cacheKey, finalReportData, 86400000);
+      console.log(`✅ Saved new report to cache for ${normalizedUrl}`);
     } catch (error) {
-      // Update status to failed
       await this.prisma.scan.update({
         where: { id: scanId },
         data: { status: ScanStatus.FAILED },
       });
-
       console.error(`Analysis failed for scan ID: ${scanId}`, error);
     }
   }
