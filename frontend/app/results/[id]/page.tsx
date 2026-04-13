@@ -2,17 +2,29 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { SeoResults } from "@/components/seo-results";
-import { RefreshCw, AlertTriangle } from "lucide-react";
+import { RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 import type { Report } from "@/lib/types";
-import { LoadingPage } from "@/components/loading-spinner";
 import { useSeoReport } from "@/lib/hooks/useSeoReport";
-import { useEffect } from "react";
-import { useDebugValue } from "react";
+import { useEffect, useState, useDebugValue } from "react";
+
+// The messages to cycle through while the background worker processes
+const LOADING_MESSAGES = [
+  "Initializing scan environment...",
+  "Fetching Google Lighthouse metrics...",
+  "Analyzing Core Web Vitals...",
+  "Evaluating SEO best practices...",
+  "Checking mobile responsiveness...",
+  "Waking up Gemini AI...",
+  "Drafting custom recommendations...",
+  "Finalizing your complete report..."
+];
 
 export default function ResultsPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+
+  const [loadingStep, setLoadingStep] = useState(0);
 
   const {
     data: report,
@@ -27,6 +39,22 @@ export default function ResultsPage() {
 
   // Add debug values for React DevTools
   useDebugValue({ id, status, failureCount, hasReport: !!report });
+
+  // Cycle through loading messages every 3.5 seconds
+  useEffect(() => {
+    const isLoadingState = isPending || 
+      (!report && isFetching) || 
+      (report?.status && ['PENDING', 'PROCESSING'].includes(report.status));
+
+    if (isLoadingState) {
+      const interval = setInterval(() => {
+        setLoadingStep((prev) => 
+          prev < LOADING_MESSAGES.length - 1 ? prev + 1 : prev
+        );
+      }, 3500);
+      return () => clearInterval(interval);
+    }
+  }, [isPending, isFetching, report?.status]);
 
   // Enhanced debug logging
   useEffect(() => {
@@ -155,6 +183,8 @@ export default function ResultsPage() {
               Back to Dashboard
             </button>
           </div>
+          
+          {/* Fully Restored Development Debug Overlay */}
           {process.env.NODE_ENV === 'development' && error instanceof Error && (
             <div className="mt-4 p-2 bg-gray-100 rounded text-left space-y-2">
               <details>
@@ -257,15 +287,51 @@ export default function ResultsPage() {
   });
 
   if (isLoading) {
+    // Calculate simulated progress based on the current message index
+    const progressPercentage = Math.min(
+      95, // Cap at 95% until actually finished
+      ((loadingStep + 1) / LOADING_MESSAGES.length) * 100
+    );
+
     return (
-      <LoadingPage
-        title="Generating Your SEO Report..."
-        message={
-          failureCount > 0
-            ? `Still processing... This is taking longer than usual. (Attempt ${failureCount})`
-            : "Our AI is analyzing the Lighthouse data. This can take up to a minute. We'll automatically load your report when it's ready."
-        }
-      />
+      <div className="min-h-screen flex items-center justify-center bg-[#FFDE59] p-4">
+        <div className="neo-card bg-white text-center p-8 md:p-12 max-w-xl w-full transform -rotate-1 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <div className="flex justify-center mb-8">
+            <Loader2 className="h-16 w-16 animate-spin text-[#FF5757]" />
+          </div>
+          
+          <h2 className="text-3xl font-black uppercase mb-6 tracking-tight">
+            Analyzing Website
+          </h2>
+          
+          {/* Animated Message Text */}
+          <div className="h-8 mb-6 flex items-center justify-center">
+            <p className="text-lg font-bold text-gray-700 animate-pulse">
+              {LOADING_MESSAGES[loadingStep]}
+              {failureCount > 0 && <span className="text-[#FF5757] ml-2">(Attempt {failureCount})</span>}
+            </p>
+          </div>
+
+          {/* Brutalist Progress Bar */}
+          <div className="w-full bg-gray-100 h-6 border-4 border-black relative overflow-hidden mb-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <div 
+              className="absolute top-0 left-0 h-full bg-[#FF5757] transition-all duration-1000 ease-out border-r-4 border-black"
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+
+          <p className="text-sm font-bold text-gray-500 mt-6">
+            This deep-dive audit takes about 30 seconds.<br/>Please don't close this window.
+          </p>
+          
+          {/* Subtle status debug indicator */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-6 text-xs text-gray-400 font-mono">
+              Status: {report?.status || 'PENDING'} | Job: {id.slice(-6)}
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
 
@@ -287,7 +353,7 @@ export default function ResultsPage() {
       <>
         <SeoResults reportData={{ ...report.report, url: report.url }} />
         {process.env.NODE_ENV === 'development' && (
-          <div className="fixed bottom-4 right-4 p-2 bg-black/80 text-white text-xs rounded-lg font-mono space-y-1">
+          <div className="fixed bottom-4 right-4 p-2 bg-black/80 text-white text-xs rounded-lg font-mono space-y-1 z-50">
             <div>Query Status: {status}</div>
             <div>Scan Status: {report.status}</div>
             <div>Retries: {failureCount}</div>
@@ -323,18 +389,18 @@ export default function ResultsPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#ffe26d] p-4">
-      <div className="neo-card bg-white text-center p-8 max-w-md">
+      <div className="neo-card bg-white text-center p-8 max-w-md shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
         <p className="text-xl font-bold mb-4">
           {isGenerating ? "Report in Progress" : "Report Not Found"}
         </p>
-        <p className="text-gray-600 mb-2">
+        <p className="text-gray-600 mb-2 font-medium">
           {isGenerating
             ? statusMessage
             : "The requested report could not be found or has expired."
           }
         </p>
         {report?.status && (
-          <p className="text-sm text-orange-600 mb-6">
+          <p className="text-sm text-[#FF5757] font-bold mb-6">
             Status: {statusMessage}
             {failureCount > 0 && ` (Attempt ${failureCount + 1})`}
           </p>
@@ -343,7 +409,7 @@ export default function ResultsPage() {
           {isGenerating ? (
             <button
               onClick={() => refetch()}
-              className="neo-button bg-[#FF5757] flex items-center gap-2"
+              className="neo-button bg-[#FFDE59] flex items-center gap-2"
             >
               <RefreshCw className="h-4 w-4" />
               Check Again
@@ -351,16 +417,16 @@ export default function ResultsPage() {
           ) : (
             <button
               onClick={handleBackToDashboard}
-              className="neo-button bg-[#FF5757]"
+              className="neo-button bg-[#FF5757] text-white"
             >
               Back to Dashboard
             </button>
           )}
         </div>
         {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 p-2 bg-gray-100 rounded text-left">
-            <p className="text-xs text-gray-600">Debug Info:</p>
-            <pre className="text-xs mt-1 overflow-auto max-h-32">
+          <div className="mt-6 p-3 bg-gray-100 border-2 border-black rounded text-left">
+            <p className="text-xs font-bold mb-2">Debug Info:</p>
+            <pre className="text-xs overflow-auto max-h-32">
               {JSON.stringify({
                 scanId: id,
                 status: report?.status,

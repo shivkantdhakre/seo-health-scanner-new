@@ -7,8 +7,8 @@ import { ScanStatus } from "../types";
 // Extend the Scan type with status
 export type SeoReport = Scan;
 
-const POLL_INTERVAL = 5000; // 5 seconds
-const MAX_RETRIES = 60; // 5 minutes worth of retries (60 * 5000ms)
+const POLL_INTERVAL = 3000; // ⚡️ Reduced to 3 seconds for snappier UX
+const MAX_RETRIES = 100; // 5 minutes worth of retries (100 * 3000ms)
 const STALE_TIME = 1000 * 60 * 5; // 5 minutes
 
 export function useSeoReport(scanId: string | null) {
