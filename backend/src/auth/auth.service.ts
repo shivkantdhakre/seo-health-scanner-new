@@ -13,7 +13,7 @@ export class AuthService {
   // Validate a user's credentials
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.userService.findByEmail(email);
-    if (user && (await bcrypt.compare(pass, user.password))) {
+    if (user && user.password && (await bcrypt.compare(pass, user.password))) {
       const { password, ...result } = user;
       return result;
     }
@@ -34,5 +34,15 @@ export class AuthService {
     const hash = await bcrypt.hash(pass, saltRounds);
     const user = await this.userService.create(email, hash);
     return this.login(user);
+  }
+
+  // Handle Google OAuth login/signup
+  async validateGoogleUser(profile: {
+    email: string;
+    name: string;
+    googleId: string;
+  }) {
+    const user = await this.userService.findOrCreateGoogleUser(profile);
+    return user;
   }
 }

@@ -76,14 +76,14 @@ export class CoreService {
       }
 
       return response.data;
-    } catch (error:any) {
+    } catch (error: any) {
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
         console.error('Timeout fetching Lighthouse report:', error.message);
         throw new Error('Request timed out while fetching Lighthouse report.');
       } else {
         // Log non-sensitive API response context
-        let status = error.response?.status;
-        let responseData = error.response?.data;
+        const status = error.response?.status;
+        const responseData = error.response?.data;
         let truncatedData = '';
         if (responseData) {
           try {
@@ -252,7 +252,7 @@ export class CoreService {
         };
 
         return validatedSuggestions;
-      } catch (parseError:any) {
+      } catch (parseError: any) {
         console.error('JSON Parse Error:', {
           error: parseError,
           receivedText: text,
@@ -260,7 +260,7 @@ export class CoreService {
         });
         throw new Error('Failed to parse AI response as JSON');
       }
-    } catch (error:any) {
+    } catch (error: any) {
       console.error('Error generating Gemini suggestions:', {
         error,
         message: error.message,

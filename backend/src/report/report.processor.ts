@@ -6,7 +6,12 @@ import type { Cache } from 'cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
 import { CoreService } from '../core/core.service';
 import { ScanStatus, Prisma } from '@prisma/client';
-import { GeminiSuggestions, Issue, Recommendation, Detail } from '../core/core.service';
+import {
+  GeminiSuggestions,
+  Issue,
+  Recommendation,
+  Detail,
+} from '../core/core.service';
 
 @Processor('scan-queue')
 export class ReportProcessor extends WorkerHost {
@@ -19,7 +24,9 @@ export class ReportProcessor extends WorkerHost {
   }
 
   // --- Helper Methods for Fallback Suggestions ---
-  private scoreToStatus(score: number | null | undefined): 'good' | 'warning' | 'bad' | 'na' {
+  private scoreToStatus(
+    score: number | null | undefined,
+  ): 'good' | 'warning' | 'bad' | 'na' {
     if (score === null || score === undefined) return 'na';
     if (typeof score !== 'number' || isNaN(score)) return 'bad';
     if (score >= 0.9) return 'good';
@@ -27,7 +34,10 @@ export class ReportProcessor extends WorkerHost {
     return 'bad';
   }
 
-  private getAuditValue(audits: Record<string, any>, keys: string | string[]): any {
+  private getAuditValue(
+    audits: Record<string, any>,
+    keys: string | string[],
+  ): any {
     const keyArray = Array.isArray(keys) ? keys : [keys];
     for (const key of keyArray) {
       const audit = audits[key];
@@ -48,7 +58,10 @@ export class ReportProcessor extends WorkerHost {
     if (fcp) {
       technicalDetails.push({
         name: 'First Contentful Paint',
-        value: typeof fcp.numericValue === 'number' ? `${(fcp.numericValue / 1000).toFixed(2)}s` : 'N/A',
+        value:
+          typeof fcp.numericValue === 'number'
+            ? `${(fcp.numericValue / 1000).toFixed(2)}s`
+            : 'N/A',
         status: this.scoreToStatus(fcp.score),
       });
     }
@@ -114,7 +127,13 @@ export class ReportProcessor extends WorkerHost {
       }
     });
 
-    return { issues, recommendations, metaTagsDetails, contentDetails, technicalDetails };
+    return {
+      issues,
+      recommendations,
+      metaTagsDetails,
+      contentDetails,
+      technicalDetails,
+    };
   }
   // --- End Helper Methods ---
 
@@ -132,24 +151,30 @@ export class ReportProcessor extends WorkerHost {
 
       // --- EXPENSIVE API CALLS BEGIN ---
       const lighthouseData = await this.coreService.getLighthouseReport(url);
-      if (!lighthouseData) throw new Error('Failed to fetch Lighthouse report.');
+      if (!lighthouseData)
+        throw new Error('Failed to fetch Lighthouse report.');
 
       let aiSuggestions;
       try {
-        aiSuggestions = await this.coreService.getGeminiSuggestions(lighthouseData);
+        aiSuggestions =
+          await this.coreService.getGeminiSuggestions(lighthouseData);
       } catch (error) {
-        console.error('[Worker] Gemini failed, using basic fallback suggestions.');
+        console.error(
+          '[Worker] Gemini failed, using basic fallback suggestions.',
+        );
         aiSuggestions = this.createBasicSuggestions(lighthouseData);
       }
 
       const { categories } = lighthouseData.lighthouseResult;
-      
+
       const finalReportData = {
         lighthouseResult: lighthouseData as unknown as Prisma.InputJsonValue,
         aiSuggestions: aiSuggestions as unknown as Prisma.InputJsonValue,
         performanceScore: Math.round(categories.performance.score * 100),
         accessibilityScore: Math.round(categories.accessibility.score * 100),
-        bestPracticesScore: Math.round(categories['best-practices'].score * 100),
+        bestPracticesScore: Math.round(
+          categories['best-practices'].score * 100,
+        ),
         seoScore: Math.round(categories.seo.score * 100),
       };
       // --- EXPENSIVE API CALLS END ---
@@ -157,13 +182,16 @@ export class ReportProcessor extends WorkerHost {
       // 2. Save to Database
       await this.prisma.$transaction([
         this.prisma.report.create({ data: { scanId, ...finalReportData } }),
-        this.prisma.scan.update({ where: { id: scanId }, data: { status: ScanStatus.COMPLETED } }),
+        this.prisma.scan.update({
+          where: { id: scanId },
+          data: { status: ScanStatus.COMPLETED },
+        }),
       ]);
 
       // 3. Save to Cache for 24 hours
       const cacheKey = `seo_report_${url}`;
       await this.cacheManager.set(cacheKey, finalReportData, 86400000);
-      
+
       console.log(`[Worker] Job ${job.id} completed successfully!`);
     } catch (error) {
       await this.prisma.scan.update({

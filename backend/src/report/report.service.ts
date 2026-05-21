@@ -26,8 +26,10 @@ export class ReportService {
     const cachedReport = (await this.cacheManager.get(cacheKey)) as any;
 
     if (cachedReport) {
-      console.log(`🚀 CACHE HIT in Service! Returning instantly for ${normalizedUrl}`);
-      
+      console.log(
+        `🚀 CACHE HIT in Service! Returning instantly for ${normalizedUrl}`,
+      );
+
       // RESTORED: Use a single strict transaction for the cache hit
       const [scan] = await this.prisma.$transaction([
         this.prisma.scan.create({
@@ -49,26 +51,30 @@ export class ReportService {
               accessibilityScore: cachedReport.accessibilityScore,
               bestPracticesScore: cachedReport.bestPracticesScore,
               seoScore: cachedReport.seoScore,
-              lighthouseResult: cachedReport.lighthouseResult as unknown as Prisma.InputJsonValue,
-              aiSuggestions: cachedReport.aiSuggestions as unknown as Prisma.InputJsonValue,
-            }
-          }
-        }
+              lighthouseResult:
+                cachedReport.lighthouseResult as unknown as Prisma.InputJsonValue,
+              aiSuggestions:
+                cachedReport.aiSuggestions as unknown as Prisma.InputJsonValue,
+            },
+          },
+        },
       });
 
       return completeScan;
     }
 
     // 2. CACHE MISS
-    console.log(`🐌 CACHE MISS. Adding ${normalizedUrl} to BullMQ worker queue...`);
+    console.log(
+      `🐌 CACHE MISS. Adding ${normalizedUrl} to BullMQ worker queue...`,
+    );
     const scan = await this.prisma.scan.create({
       data: { url, userId: user.id, status: ScanStatus.PENDING },
     });
 
     // 3. TOSS TO BACKGROUND WORKER
-    await this.scanQueue.add('analyze-url', { 
-      scanId: scan.id, 
-      url: normalizedUrl 
+    await this.scanQueue.add('analyze-url', {
+      scanId: scan.id,
+      url: normalizedUrl,
     });
 
     return scan;

@@ -6,15 +6,20 @@ import {
   Get,
   UseGuards,
   Req,
-  UnauthorizedException, // Import UnauthorizedException
+  UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import type { Response } from 'express';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { GoogleAuthGuard } from './google-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) {}
 
   @Post('signup')
   async signup(@Body() body, @Res({ passthrough: true }) response: Response) {
@@ -22,14 +27,14 @@ export class AuthController {
       body.email,
       body.password,
     );
-    
+
     // UPDATE THIS LINE TO MATCH LOGIN
     response.cookie('jwt', access_token, {
       httpOnly: true,
-      secure: true, 
-      sameSite: 'none', 
+      secure: true,
+      sameSite: 'none',
     });
-    
+
     return { message: 'Signup successful' };
   }
 
@@ -56,10 +61,10 @@ export class AuthController {
   @Post('logout')
   logout(@Res({ passthrough: true }) response: Response) {
     // Clear the cookie using the exact same settings used to create it
-    response.clearCookie('jwt', { 
+    response.clearCookie('jwt', {
       httpOnly: true,
-      secure: true, 
-      sameSite: 'none' 
+      secure: true,
+      sameSite: 'none',
     });
     return { message: 'Logged out successfully' };
   }
@@ -69,5 +74,33 @@ export class AuthController {
   getProfile(@Req() req) {
     // This protected route will only work if the user sends a valid JWT cookie.
     return req.user;
+  }
+
+  // --- Google OAuth ---
+
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  googleLogin() {
+    // Guard redirects to Google — this method body is never executed
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  async googleCallback(
+    @Req() req,
+    @Res({ passthrough: false }) response: Response,
+  ) {
+    // req.user is populated by GoogleStrategy.validate()
+    const { access_token } = await this.authService.login(req.user);
+
+    response.cookie('jwt', access_token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+    });
+
+    // Redirect the browser back to the frontend dashboard
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    response.redirect(`${frontendUrl}/dashboard`);
   }
 }
