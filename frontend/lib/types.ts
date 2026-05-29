@@ -2,6 +2,7 @@
 
 export interface Report {
   id: string;
+  scanId?: string;
   performanceScore: number;
   accessibilityScore: number;
   bestPracticesScore: number;

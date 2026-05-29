@@ -69,72 +69,66 @@ export function TabsContainer({ results }: { results?: AISuggestions }) {
         </div>
       </div>
 
-      {activeTab === "issues" && (
-        <div className="tab-content p-6 space-y-6">
-          {issues.length === 0 ? (
-            <div className="text-center py-8">
-              <CheckCircle2 className="h-16 w-16 text-[#00C853] mx-auto mb-4" />
-              <p className="text-2xl font-bold">No critical issues found!</p>
-              <p className="text-lg">
-                Your website is doing well, but check the recommendations for
-                further improvements.
-              </p>
-            </div>
-          ) : (
-            issues.map(
-              (
-                issue: {
-                  title: string;
-                  description: string;
-                  severity: "high" | "medium" | "low";
-                },
-                index: number
-              ) => (
-                <IssueCard
-                  key={index}
-                  issue={issue}
-                  rotation={index % 2 === 0 ? "rotate-1" : "-rotate-1"}
-                />
-              )
-            )
-          )}
-        </div>
-      )}
-
-      {activeTab === "recommendations" && (
-        <div className="tab-content p-6 space-y-6">
-          {recommendations.map(
+      <div className={`tab-content p-6 space-y-6 ${activeTab === "issues" ? "block" : "hidden print:block"}`}>
+        {issues.length === 0 ? (
+          <div className="text-center py-8">
+            <CheckCircle2 className="h-16 w-16 text-[#00C853] mx-auto mb-4" />
+            <p className="text-2xl font-bold">No critical issues found!</p>
+            <p className="text-lg">
+              Your website is doing well, but check the recommendations for
+              further improvements.
+            </p>
+          </div>
+        ) : (
+          issues.map(
             (
-              recommendation: {
+              issue: {
                 title: string;
                 description: string;
-                impact: "high" | "medium" | "low";
+                severity: "high" | "medium" | "low";
               },
               index: number
             ) => (
-              <RecommendationCard
+              <IssueCard
                 key={index}
-                recommendation={recommendation}
-                rotation={index % 2 === 0 ? "-rotate-1" : "rotate-1"}
+                issue={issue}
+                rotation={index % 2 === 0 ? "rotate-1" : "-rotate-1"}
               />
             )
-          )}
-        </div>
-      )}
+          )
+        )}
+      </div>
 
-      {activeTab === "details" && (
-        <div className="tab-content p-6 space-y-8">
-          <DetailSection title="Meta Tags" items={metaTagsDetails} />
-          <DetailSection
-            title="Content Analysis"
-            items={contentDetails}
-          />
-          <DetailSection
-            title="Technical SEO"
-            items={technicalDetails}
-          />
-        </div>
-      )}
+      <div className={`tab-content p-6 space-y-6 ${activeTab === "recommendations" ? "block" : "hidden print:block"}`}>
+        {recommendations.map(
+          (
+            recommendation: {
+              title: string;
+              description: string;
+              impact: "high" | "medium" | "low";
+            },
+            index: number
+          ) => (
+            <RecommendationCard
+              key={index}
+              recommendation={recommendation}
+              rotation={index % 2 === 0 ? "-rotate-1" : "rotate-1"}
+            />
+          )
+        )}
+      </div>
+
+      <div className={`tab-content p-6 space-y-8 ${activeTab === "details" ? "block" : "hidden print:block"}`}>
+        <DetailSection title="Meta Tags" items={metaTagsDetails} />
+        <DetailSection
+          title="Content Analysis"
+          items={contentDetails}
+        />
+        <DetailSection
+          title="Technical SEO"
+          items={technicalDetails}
+        />
+      </div>
     </div>
   );
 }

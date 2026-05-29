@@ -2,7 +2,7 @@ import axios from "axios";
 import { env } from "./env";
 import { ScanData, ApiError } from "./types";
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: env.apiUrl,
   timeout: 10000,
   withCredentials: true, // Enable sending cookies

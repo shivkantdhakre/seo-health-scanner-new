@@ -1,11 +1,46 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { useState } from "react";
+import { ExternalLink, FileText, Loader2 } from "lucide-react";
 import { TabsContainer } from "./seo-tabs";
 import type { Report } from "@/lib/types";
+import { api } from "@/lib/api";
 
 export function SeoResults({ reportData }: { reportData: Report }) {
   const results = reportData;
+
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const downloadPDF = async () => {
+    setIsDownloading(true);
+    setDownloadError(null);
+
+    const scanId = results.scanId || results.id;
+
+    try {
+      console.debug(`[SeoResults] Downloading PDF for scan: ${scanId}`);
+      const response = await api.get(`/report/${scanId}/pdf`, {
+        responseType: "blob",
+        timeout: 60000, // 60 seconds for Puppeteer PDF rendering
+      });
+
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.setAttribute("download", `seo-report-${scanId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err: any) {
+      console.error("[SeoResults] PDF download failed:", err);
+      setDownloadError(err.message || "Failed to download PDF report. Please try again.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   // Validate report data structure without logging sensitive details
   console.debug('[SeoResults] Report data validation:', {
@@ -130,6 +165,28 @@ export function SeoResults({ reportData }: { reportData: Report }) {
               ) : (
                 <span className="text-gray-600">{displayUrl}</span>
               )}
+              <div className="pt-2">
+                <button
+                  onClick={downloadPDF}
+                  disabled={isDownloading}
+                  className="neo-button bg-[#FF5757] text-white flex items-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4" />
+                      Export PDF Report
+                    </>
+                  )}
+                </button>
+                {downloadError && (
+                  <p className="text-red-600 text-sm font-bold mt-2">{downloadError}</p>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-8 md:border-l md:pl-8 md:border-gray-200">
               <div className="text-center">
