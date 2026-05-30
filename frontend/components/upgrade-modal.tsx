@@ -79,6 +79,7 @@ const loadRazorpayScript = () => {
 export default function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
   const { user, checkAuth } = useAuth();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
+  const [isProvisioning, setIsProvisioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -113,8 +114,10 @@ export default function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
         description: `Purchase ${order.tierName}`,
         order_id: order.id,
         handler: async function (response: any) {
-          console.debug("[UpgradeModal] Razorpay transaction response captured, sending to verification endpoint:", response);
-          
+          console.debug("[UpgradeModal] Payment captured, verifying...", response);
+          // Transition to provisioning state — blocks all further interaction
+          setLoadingTier(null);
+          setIsProvisioning(true);
           try {
             await api.post("/billing/verify-payment", {
               razorpay_order_id: response.razorpay_order_id,
@@ -122,13 +125,14 @@ export default function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
               razorpay_signature: response.razorpay_signature,
               tierId,
             });
-
+            // Refresh user credits in AuthContext
             await checkAuth();
-            alert(`Payment verified successfully! Your ${order.tierName} credits are now active.`);
+            alert(`Payment verified! Your ${order.tierName} credits are now active.`);
           } catch (verifyError: any) {
             console.error("[UpgradeModal] Verification failed:", verifyError);
             alert("Payment signature verification failed. Please contact support.");
           } finally {
+            setIsProvisioning(false);
             onClose();
           }
         },
@@ -234,10 +238,15 @@ export default function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
               {/* Checkout Action Button */}
               <button
                 onClick={() => handlePurchase(tier.id)}
-                disabled={loadingTier !== null}
+                disabled={loadingTier !== null || isProvisioning}
                 className={`neo-button w-full mt-8 flex items-center justify-center gap-2 text-lg uppercase transition-transform py-3 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${tier.btnColor} disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                {loadingTier === tier.id ? (
+                {isProvisioning ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Provisioning Credits...
+                  </>
+                ) : loadingTier === tier.id ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
                     Opening Checkout...

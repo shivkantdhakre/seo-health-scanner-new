@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useCallback, useEffect, useDebugValue } from "react";
-import { useRouter } from "next/navigation"; // Added router for redirects
+import { useRouter } from "next/navigation";
 import { validateUrl } from "@/lib/validation";
 import { useInitiateScan, MIN_SCAN_INTERVAL } from "@/lib/hooks/useInitiateScan";
-import { useAuth } from "@/lib/AuthContext"; // Added global auth state
+import { useAuth } from "@/lib/AuthContext";
+import { toast } from "sonner";
 import type { ScanData } from "@/lib/types";
 
 interface SeoFormProps {
@@ -61,14 +62,14 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
 
     if (timeSinceLastScan < MIN_SCAN_INTERVAL) {
       const remainingTime = Math.ceil((MIN_SCAN_INTERVAL - timeSinceLastScan) / 1000);
-      setError(`Please wait ${remainingTime} seconds before starting another scan.`);
+      toast.warning(`⏳ Rate limit — please wait ${remainingTime}s before starting another scan.`);
       return;
     }
 
     // 3. Validate URL input
     const validation = validateUrl(url);
     if (!validation.isValid) {
-      setError(validation.error || "Invalid URL");
+      toast.error(`❌ Invalid URL — ${validation.error || "Please enter a valid URL."}`);
       return;
     }
 
@@ -79,7 +80,14 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
         onScanInitiated(scanData);
       },
       onError: (error) => {
-        setError(error.message || "Failed to start scan. Please try again.");
+        const msg = error.message || "Failed to start scan. Please try again.";
+        setError(msg);
+        // Also show as toast for visibility
+        if (msg.toLowerCase().includes('credit') || msg.toLowerCase().includes('upgrade')) {
+          toast.error(`🔴 ${msg}`, { duration: 6000 });
+        } else {
+          toast.error(msg);
+        }
       },
     });
   }, [url, lastScanTime, initiateScan, onScanInitiated, user, router]);
@@ -88,7 +96,7 @@ export function SeoForm({ onScanInitiated }: SeoFormProps) {
   const isDisabled = isPending || isAuthLoading;
 
   return (
-    <div className="neo-card -rotate-1 bg-white">
+    <div className="neo-card -rotate-1 transform transition-all hover:rotate-0 duration-300 bg-white">
       <div className="space-y-4">
         <label htmlFor="url" className="block text-xl font-bold">
           Website URL

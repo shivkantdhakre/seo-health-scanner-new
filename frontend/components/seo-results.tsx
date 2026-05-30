@@ -1,10 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, FileText, Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { motion } from "framer-motion";
+import { ExternalLink, FileText, Loader2, Info } from "lucide-react";
 import { TabsContainer } from "./seo-tabs";
 import type { Report } from "@/lib/types";
 import { api } from "@/lib/api";
+
+// Dynamically import heavy charting library — only loads on results page, never SSR
+const SeoRadarChart = dynamic(
+  () => import("./seo-radar-chart").then((m) => ({ default: m.SeoRadarChart })),
+  { ssr: false, loading: () => <div className="neo-card h-[280px] animate-pulse bg-gray-100" /> }
+);
 
 export function SeoResults({ reportData }: { reportData: Report }) {
   const results = reportData;
@@ -188,7 +196,8 @@ export function SeoResults({ reportData }: { reportData: Report }) {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-8 md:border-l md:pl-8 md:border-gray-200">
+            <div className="flex flex-col md:flex-row items-center gap-6 md:border-l md:pl-8 md:border-gray-200">
+              {/* Overall Score */}
               <div className="text-center">
                 <div className="relative">
                   <div className="text-6xl font-black mb-1">
@@ -201,46 +210,57 @@ export function SeoResults({ reportData }: { reportData: Report }) {
                   </div>
                 </div>
                 <div className="text-sm font-medium text-gray-600 uppercase tracking-wider mt-2">Overall Score</div>
+                <div
+                  className={`neo-badge ${getScoreBg(overallScore)} text-white text-lg font-bold px-6 py-3 mt-3 shadow-lg`}
+                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}
+                >
+                  {overallScore >= 90 ? "EXCELLENT" : overallScore >= 50 ? "NEEDS WORK" : "POOR"}
+                </div>
               </div>
-              <div
-                className={`neo-badge ${getScoreBg(overallScore)} text-white text-lg font-bold px-6 py-3 shadow-lg`}
-                style={{
-                  textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                }}
-              >
-                {overallScore >= 90
-                  ? "EXCELLENT"
-                  : overallScore >= 50
-                    ? "NEEDS WORK"
-                    : "POOR"}
+              {/* Radar Chart — lazy loaded */}
+              <div className="w-full md:w-64 flex-shrink-0">
+                <SeoRadarChart scores={scores} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Score Cards Grid */}
+        {/* Score Cards Grid — staggered Framer Motion entry */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
-          <ScoreCard
-            title="Performance"
-            score={results.performanceScore}
-            rotation="-rotate-1"
-          />
-          <ScoreCard
-            title="Accessibility"
-            score={results.accessibilityScore}
-            rotation="rotate-1"
-          />
-          <ScoreCard
-            title="Best Practices"
-            score={results.bestPracticesScore}
-            rotation="-rotate-1"
-          />
-          <ScoreCard
-            title="SEO"
-            score={results.seoScore}
-            rotation="rotate-1"
-          />
+          {[
+            { title: "Performance", score: results.performanceScore, rotation: "-rotate-1" },
+            { title: "Accessibility", score: results.accessibilityScore, rotation: "rotate-1" },
+            { title: "Best Practices", score: results.bestPracticesScore, rotation: "-rotate-1" },
+            { title: "SEO", score: results.seoScore, rotation: "rotate-1" },
+          ].map((card, i) => (
+            <motion.div
+              key={card.title}
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.1, ease: "easeOut" }}
+            >
+              <ScoreCard title={card.title} score={card.score} rotation={card.rotation} />
+            </motion.div>
+          ))}
         </div>
+
+        {/* Fallback mode banner — shown when Gemini AI was unavailable */}
+        {(results.aiSuggestions as any)?.isFallback && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+            className="flex items-start gap-3 bg-[#FFDE59] border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <p className="font-bold text-sm uppercase tracking-wide">
+              Standard Core Audit Loaded —{" "}
+              <span className="font-normal normal-case tracking-normal">
+                Complete Generative Strategies are Temporarily Processing. Our Gemini AI insights will be available on your next scan of this URL.
+              </span>
+            </p>
+          </motion.div>
+        )}
 
         {/* Detailed Results */}
         <div className="neo-card bg-white/95 backdrop-blur-sm -rotate-1 transform hover:rotate-0 transition-all duration-300">

@@ -27,7 +27,7 @@ export function TabsContainer({ results }: { results?: AISuggestions }) {
   const technicalDetails = results.technicalDetails || [];
 
   return (
-    <div className="neo-card bg-white -rotate-1">
+    <div className="neo-card bg-white -rotate-1 transform hover:rotate-0 transition-all duration-300">
       <div className="p-4 border-b-4 border-black">
         <h2 className="text-2xl font-bold mb-4">Analysis Results</h2>
         <div className="flex flex-wrap gap-4">
@@ -175,7 +175,7 @@ function IssueCard({
   const config = severityConfig[issue.severity];
 
   return (
-    <div className={`neo-card ${rotation} transform transition-all duration-300 hover:scale-[1.02]`}>
+    <div className={`neo-card ${rotation} transform hover:rotate-0 transition-all duration-300`}>
       <div className={`absolute top-0 right-0 ${config.bg} text-white px-3 py-1 text-sm font-bold rounded-bl-lg rounded-tr-lg`}>
         {config.label}
       </div>
@@ -244,7 +244,7 @@ function RecommendationCard({
   const config = impactConfig[recommendation.impact];
 
   return (
-    <div className={`neo-card ${rotation} transform transition-all duration-300 hover:scale-[1.02]`}>
+    <div className={`neo-card ${rotation} transform transition-all duration-300 hover:rotate-0`}>
       <div className={`absolute top-0 right-0 ${config.bg} text-white px-3 py-1 text-sm font-bold rounded-bl-lg rounded-tr-lg`}>
         {config.label}
       </div>
@@ -310,7 +310,7 @@ function DetailSection({
 
   if (items.length === 0) {
     return (
-      <div className="neo-card rotate-1 p-6">
+      <div className="neo-card rotate-1 transform hover:rotate-0 transition-all duration-300 p-6">
         <h3 className="text-2xl font-bold mb-4 uppercase">{title}</h3>
         <div className="bg-gray-50 rounded-lg p-6 text-center">
           <p className="text-gray-500">No specific details to show for this section.</p>
@@ -326,7 +326,7 @@ function DetailSection({
   };
 
   return (
-    <div className="neo-card rotate-1 p-6">
+    <div className="neo-card rotate-1 transform hover:rotate-0 transition-all duration-300 p-6">
       <h3 className="text-2xl font-bold mb-6 uppercase">{title}</h3>
       <div className="space-y-6">
         {Object.entries(groupedItems).map(([status, statusItems]) =>

@@ -86,54 +86,82 @@
   }
 }
 
-/* Custom component styles for v4 */
-.neo-border {
-  border: 4px solid black;
+/* ============================================================
+   NEO-BRUTALIST DESIGN SYSTEM — CSS Variable Architecture
+   Phase 3 White-Label ready: override --neo-* variables
+   to inject custom brand color schemes per agency tenant.
+   ============================================================ */
+
+:root {
+  --neo-border-width: 4px;
+  --neo-border-color: #000000;
+  --neo-shadow-color: rgba(0, 0, 0, 1);
+  --neo-shadow-offset: 4px;
+  --neo-primary-color: #FF5757;
+  --neo-accent-color: #FFDE59;
+  --neo-success-color: #00C853;
+  --neo-warning-color: #FFB300;
+  --neo-transition: all 0.2s ease-in-out;
 }
 
+/* Core shadow utility */
 .neo-shadow {
-  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+  box-shadow: var(--neo-shadow-offset) var(--neo-shadow-offset) 0px 0px var(--neo-shadow-color);
+  transition: var(--neo-transition);
 }
 
-.neo-button {
-  border: 4px solid black;
-  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
-  background-color: hsl(var(--primary));
-  color: white;
-  font-weight: bold;
-  padding: 0.5rem 1rem;
-  transition: all 0.2s;
-}
-
-.neo-button:hover {
-  transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 1);
-}
-
-.neo-button:active {
-  transform: translate(4px, 4px);
-  box-shadow: none;
-}
-
-.neo-input {
-  border: 4px solid black;
-  background-color: white;
-  padding: 0.5rem 1rem;
-  outline: none;
-}
-
-.neo-input:focus {
-  outline: none;
-  box-shadow: none;
-}
-
+/* Card component */
 .neo-card {
-  border: 4px solid black;
-  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+  border: var(--neo-border-width) solid var(--neo-border-color);
+  box-shadow: var(--neo-shadow-offset) var(--neo-shadow-offset) 0px 0px var(--neo-shadow-color);
   background-color: white;
   padding: 1rem;
 }
 
+/* Button component */
+.neo-button {
+  border: var(--neo-border-width) solid var(--neo-border-color);
+  box-shadow: var(--neo-shadow-offset) var(--neo-shadow-offset) 0px 0px var(--neo-shadow-color);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: var(--neo-transition);
+}
+
+.neo-button:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px 0px var(--neo-shadow-color);
+}
+
+.neo-button:active {
+  transform: translate(var(--neo-border-width), var(--neo-border-width));
+  box-shadow: none;
+}
+
+.neo-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--neo-shadow-offset) var(--neo-shadow-offset) 0px 0px var(--neo-shadow-color);
+}
+
+/* Input component */
+.neo-input {
+  border: var(--neo-border-width) solid var(--neo-border-color);
+  background-color: white;
+  padding: 0.5rem 1rem;
+  outline: none;
+  transition: var(--neo-transition);
+}
+
+.neo-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--neo-accent-color);
+}
+
+/* Badge component */
 .neo-badge {
   display: inline-block;
   padding: 0.25rem 0.5rem;
@@ -141,5 +169,10 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border: 4px solid black;
+  border: var(--neo-border-width) solid var(--neo-border-color);
+}
+
+/* Legacy alias — keep for backward compat */
+.neo-border {
+  border: var(--neo-border-width) solid var(--neo-border-color);
 }

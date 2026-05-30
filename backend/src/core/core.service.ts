@@ -26,6 +26,7 @@ export interface GeminiSuggestions {
   metaTagsDetails: Detail[];
   contentDetails: Detail[];
   technicalDetails: Detail[];
+  isFallback?: boolean; // Set to true when Gemini AI is unavailable and core audit fallback was used
 }
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';

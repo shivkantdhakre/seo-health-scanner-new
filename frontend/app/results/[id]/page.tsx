@@ -5,7 +5,7 @@ import { SeoResults } from "@/components/seo-results";
 import { RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 import type { Report } from "@/lib/types";
 import { useSeoReport } from "@/lib/hooks/useSeoReport";
-import { useEffect, useState, useDebugValue } from "react";
+import { useEffect, useState, useRef, useDebugValue } from "react";
 
 // The messages to cycle through while the background worker processes
 const LOADING_MESSAGES = [
@@ -25,6 +25,9 @@ export default function ResultsPage() {
   const id = params.id as string;
 
   const [loadingStep, setLoadingStep] = useState(0);
+  // Short-circuit gate: don't show the loading UI for fast cache hits
+  const [showLoader, setShowLoader] = useState(false);
+  const loaderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     data: report,
@@ -39,6 +42,24 @@ export default function ResultsPage() {
 
   // Add debug values for React DevTools
   useDebugValue({ id, status, failureCount, hasReport: !!report });
+
+  // Short-circuit: only show the loading UI after 250ms to prevent flash on cache hits
+  useEffect(() => {
+    const isComplete = report?.status === 'COMPLETED' && report?.report;
+    if (isComplete) {
+      setShowLoader(false);
+      if (loaderTimerRef.current) clearTimeout(loaderTimerRef.current);
+      return;
+    }
+    const isLoadingState = isPending || (!report && isFetching) ||
+      (report?.status && ['PENDING', 'PROCESSING'].includes(report.status));
+    if (isLoadingState && !showLoader) {
+      loaderTimerRef.current = setTimeout(() => setShowLoader(true), 250);
+    } else if (!isLoadingState) {
+      setShowLoader(false);
+    }
+    return () => { if (loaderTimerRef.current) clearTimeout(loaderTimerRef.current); };
+  }, [isPending, isFetching, report?.status, report?.report]);
 
   // Cycle through loading messages every 3.5 seconds
   useEffect(() => {
@@ -269,86 +290,8 @@ export default function ResultsPage() {
     );
   }
 
-  // Show loading state when:
-  // 1. Initial load (isPending)
-  // 2. No data yet and fetching
-  // 3. Has report in PENDING/PROCESSING state
-  const isLoading = isPending ||
-    (!report && isFetching) ||
-    (report?.status && ['PENDING', 'PROCESSING'].includes(report.status));
-
-  console.debug('[ResultsPage] Loading state check:', {
-    isPending,
-    isFetching,
-    status: report?.status,
-    isLoading,
-    hasReport: !!report?.report,
-    timestamp: new Date().toISOString()
-  });
-
-  if (isLoading) {
-    // Calculate simulated progress based on the current message index
-    const progressPercentage = Math.min(
-      95, // Cap at 95% until actually finished
-      ((loadingStep + 1) / LOADING_MESSAGES.length) * 100
-    );
-
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFDE59] p-4">
-        <div className="neo-card bg-white text-center p-8 md:p-12 max-w-xl w-full transform -rotate-1 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <div className="flex justify-center mb-8">
-            <Loader2 className="h-16 w-16 animate-spin text-[#FF5757]" />
-          </div>
-          
-          <h2 className="text-3xl font-black uppercase mb-6 tracking-tight">
-            Analyzing Website
-          </h2>
-          
-          {/* Animated Message Text */}
-          <div className="h-8 mb-6 flex items-center justify-center">
-            <p className="text-lg font-bold text-gray-700 animate-pulse">
-              {LOADING_MESSAGES[loadingStep]}
-              {failureCount > 0 && <span className="text-[#FF5757] ml-2">(Attempt {failureCount})</span>}
-            </p>
-          </div>
-
-          {/* Brutalist Progress Bar */}
-          <div className="w-full bg-gray-100 h-6 border-4 border-black relative overflow-hidden mb-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-            <div 
-              className="absolute top-0 left-0 h-full bg-[#FF5757] transition-all duration-1000 ease-out border-r-4 border-black"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-
-          <p className="text-sm font-bold text-gray-500 mt-6">
-            This deep-dive audit takes about 30 seconds.<br/>Please don't close this window.
-          </p>
-          
-          {/* Subtle status debug indicator */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mt-6 text-xs text-gray-400 font-mono">
-              Status: {report?.status || 'PENDING'} | Job: {id.slice(-6)}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Handle completed reports with data
+  // KEY FIX: If COMPLETED and has report, render directly — even while isPending was true
   if (report && report.status === 'COMPLETED' && report.report) {
-    console.debug('[ResultsPage] Rendering completed report:', {
-      scanId: id,
-      status: report.status,
-      scores: {
-        performance: report.report.performanceScore,
-        accessibility: report.report.accessibilityScore,
-        bestPractices: report.report.bestPracticesScore,
-        seo: report.report.seoScore
-      },
-      timestamp: new Date().toISOString()
-    });
-
     return (
       <>
         <SeoResults reportData={{ ...report.report, url: report.url }} />
@@ -357,12 +300,62 @@ export default function ResultsPage() {
             <div>Query Status: {status}</div>
             <div>Scan Status: {report.status}</div>
             <div>Retries: {failureCount}</div>
-            <div>Scan ID: {id}</div>
             <div className="text-green-400">✓ Analysis Complete</div>
-            <div>Scores: {report.report.performanceScore}/{report.report.seoScore}</div>
           </div>
         )}
       </>
+    );
+  }
+
+  // Show loading state: only after 250ms delay has elapsed (prevents cache-hit flash)
+  const isLoading = isPending ||
+    (!report && isFetching) ||
+    (report?.status && ['PENDING', 'PROCESSING'].includes(report.status));
+
+  if (isLoading && showLoader) {
+    const progressPercentage = Math.min(95, ((loadingStep + 1) / LOADING_MESSAGES.length) * 100);
+
+    return (
+      <div className="min-h-screen bg-[#FFDE59] relative overflow-hidden">
+        {/* Skeleton layout — structural preview of the final report */}
+        <div className="max-w-7xl mx-auto px-4 pt-24 pb-12 space-y-8 opacity-30 pointer-events-none select-none">
+          {/* Header skeleton */}
+          <div className="border-4 border-black bg-white/60 h-40 animate-pulse" />
+          {/* Score cards skeleton */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            {[0,1,2,3].map(i => (
+              <div key={i} className="border-4 border-black bg-white/60 h-48 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+            ))}
+          </div>
+          {/* Tabs skeleton */}
+          <div className="border-4 border-black bg-white/60 h-64 animate-pulse" />
+        </div>
+
+        {/* Foreground active progress overlay */}
+        <div className="absolute inset-0 flex items-center justify-center p-4">
+          <div className="neo-card bg-white text-center p-8 md:p-12 max-w-xl w-full transform -rotate-1 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex justify-center mb-8">
+              <Loader2 className="h-16 w-16 animate-spin text-[#FF5757]" />
+            </div>
+            <h2 className="text-3xl font-black uppercase mb-6 tracking-tight">Analyzing Website</h2>
+            <div className="h-8 mb-6 flex items-center justify-center">
+              <p className="text-lg font-bold text-gray-700 animate-pulse">
+                {LOADING_MESSAGES[loadingStep]}
+                {failureCount > 0 && <span className="text-[#FF5757] ml-2">(Attempt {failureCount})</span>}
+              </p>
+            </div>
+            <div className="w-full bg-gray-100 h-6 border-4 border-black relative overflow-hidden mb-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <div
+                className="absolute top-0 left-0 h-full bg-[#FF5757] transition-all duration-1000 ease-out border-r-4 border-black"
+                style={{ width: `${progressPercentage}%` }}
+              />
+            </div>
+            <p className="text-sm font-bold text-gray-500 mt-6">
+              This deep-dive audit takes about 30 seconds.<br/>Please don't close this window.
+            </p>
+          </div>
+        </div>
+      </div>
     );
   }
 

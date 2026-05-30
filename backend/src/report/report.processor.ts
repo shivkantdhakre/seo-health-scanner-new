@@ -133,6 +133,7 @@ export class ReportProcessor extends WorkerHost {
       metaTagsDetails,
       contentDetails,
       technicalDetails,
+      isFallback: true, // 🆕 Signal to the frontend that this is a core audit, not full Gemini AI
     };
   }
   // --- End Helper Methods ---
