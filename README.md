@@ -35,7 +35,7 @@ graph TD
 - **Asynchronous Queue Management:** Relies on **BullMQ** and **Redis** to offload long-running Lighthouse API calls to background workers, avoiding gateway timeouts.
 - **Optimized Caching:** Caches compiled SEO reports in-memory (or via Redis) for 24 hours to prevent redundant expensive API hits for identical URLs.
 - **Secure Authentication:** Features local email/password sign-up/login (using `bcrypt` and `passport-jwt`) along with sessionless **Google OAuth 2.0** integration (configured with `state: false` for stateless cookie authentication).
-- **Freemium & Multi-Tier Monetization:** Grants new users 3 free scans. Deducts 1 credit only on Cache Misses (Cache Hits remain free). Integrates Razorpay Standard Checkout for purchasing Starter (5 scans), Pro (12 scans), and Agency (35 scans) bundles, with signature validation and webhook handlers.
+- **Freemium & Multi-Tier Monetization:** Grants new users 3 free scans. Deducts 1 credit only on Cache Misses (Cache Hits remain free). Integrates Razorpay Standard Checkout for purchasing Starter (5 scans), Pro (12 scans), and Agency (35 scans) bundles. **Guaranteed billing idempotency via transaction logging and atomic database updates to prevent double-provisioning.**
 - **Scan History Dashboard:** Displays interactive user history tables, scan statuses (`PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`), and direct links to comprehensive reports.
 
 ---
@@ -182,11 +182,12 @@ The Next.js client will start running on [http://localhost:3000](http://localhos
 
 ## 📊 Database Schema Details
 
-The PostgreSQL database (managed via Prisma) has three main entities:
+The PostgreSQL database (managed via Prisma) has four main entities:
 
 1. **User:** Tracks registered users (both `local` email/password accounts and `google` authenticated users).
 2. **Scan:** Tracks initiated website scans, storing URL, request timestamp, ownership, and background queue status (`PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`).
 3. **Report:** Contains detailed score counts (Performance, Accessibility, Best Practices, SEO), the raw JSON data from Lighthouse, and structured recommendation objects returned by Gemini AI.
+4. **Transaction:** Logs completed credit purchases uniquely by Razorpay order ID to guarantee payment idempotency.
 
 Refer to the [Prisma Schema](file:///d:/Projects/seo-health-scanner/backend/prisma/schema.prisma) for exact types and relations.
 

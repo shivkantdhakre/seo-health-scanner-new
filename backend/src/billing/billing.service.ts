@@ -139,26 +139,35 @@ export class BillingService {
       }
 
       // Provision credits and record transaction atomically
-      const [updatedUser] = await this.prisma.$transaction([
-        this.prisma.user.update({
-          where: { id: userId },
-          data: { credits: { increment: plan.credits } },
-        }),
-        this.prisma.transaction.create({
-          data: {
-            razorpayOrderId,
-            tierId,
-            amount: plan.amount,
-            userId,
-          }
-        })
-      ]);
+      try {
+        const [updatedUser] = await this.prisma.$transaction([
+          this.prisma.user.update({
+            where: { id: userId },
+            data: { credits: { increment: plan.credits } },
+          }),
+          this.prisma.transaction.create({
+            data: {
+              razorpayOrderId,
+              tierId,
+              amount: plan.amount,
+              userId,
+            }
+          })
+        ]);
 
-      console.log(
-        `🚀 PROVISION SUCCESS: User ${updatedUser.email} has been credited with ${plan.credits} scans. New balance: ${updatedUser.credits}`,
-      );
+        console.log(
+          `🚀 PROVISION SUCCESS: User ${updatedUser.email} has been credited with ${plan.credits} scans. New balance: ${updatedUser.credits}`,
+        );
 
-      return { status: 'success', userId, creditsAdded: plan.credits };
+        return { status: 'success', userId, creditsAdded: plan.credits };
+      } catch (error: any) {
+        if (error.code === 'P2002') {
+          console.log(`[BillingService] Webhook caught race condition! Order ${razorpayOrderId} was just processed by another thread.`);
+          return { status: 'success', message: 'Already processed', userId };
+        }
+        console.error('[BillingService] Webhook transaction failed:', error);
+        return { status: 'error', reason: 'Failed to process transaction' };
+      }
     }
 
     return { status: 'received', event };
@@ -219,29 +228,43 @@ export class BillingService {
     }
 
     // Provision credits and record transaction atomically
-    const [updatedUser] = await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { credits: { increment: plan.credits } },
-      }),
-      this.prisma.transaction.create({
-        data: {
-          razorpayOrderId,
-          tierId,
-          amount: plan.amount,
-          userId,
-        }
-      })
-    ]);
+    try {
+      const [updatedUser] = await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id: userId },
+          data: { credits: { increment: plan.credits } },
+        }),
+        this.prisma.transaction.create({
+          data: {
+            razorpayOrderId,
+            tierId,
+            amount: plan.amount,
+            userId,
+          }
+        })
+      ]);
 
-    console.log(
-      `🚀 SIGNATURE VERIFIED: User ${updatedUser.email} purchased ${plan.name} (+${plan.credits} credits). New balance: ${updatedUser.credits}`,
-    );
+      console.log(
+        `🚀 SIGNATURE VERIFIED: User ${updatedUser.email} purchased ${plan.name} (+${plan.credits} credits). New balance: ${updatedUser.credits}`,
+      );
 
-    return {
-      success: true,
-      message: 'Payment verified successfully.',
-      newBalance: updatedUser.credits,
-    };
+      return {
+        success: true,
+        message: 'Payment verified successfully.',
+        newBalance: updatedUser.credits,
+      };
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        console.log(`[BillingService] verifyPaymentSignature caught race condition! Order ${razorpayOrderId} was just processed by another thread.`);
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        return {
+          success: true,
+          message: 'Already processed',
+          newBalance: user?.credits || 0,
+        };
+      }
+      console.error('[BillingService] verifyPaymentSignature transaction failed:', error);
+      throw new BadRequestException('Failed to process transaction.');
+    }
   }
 }
