@@ -6,6 +6,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { AuthProvider } from "@/lib/AuthContext";
 import Providers from "./providers";
 import Navbar from "@/components/Navbar"; // Import the Navbar we created
+import Script from "next/script";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -48,6 +49,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={spaceGrotesk.className}>
+        <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
         {/* Providers (like React Query) wrap everything */}
         <Providers>
           {/* AuthProvider wraps the UI so Navbar and pages know who is logged in */}

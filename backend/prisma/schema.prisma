@@ -15,6 +15,7 @@ model User {
   name       String?
   provider   String   @default("local") // 🆕 Tracks "local" vs "google"
   providerId String?  @unique           // 🆕 Stores the unique Google ID
+  credits    Int      @default(3)       // 🆕 Initial free credits
   scans      Scan[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

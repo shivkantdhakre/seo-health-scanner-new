@@ -7,12 +7,16 @@ import { SeoForm } from "@/components/seo-form";
 import { getScanHistory } from "@/lib/auth";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import type { Scan, ScanData, ApiError } from "@/lib/types";
+import { useAuth } from "@/lib/AuthContext";
+import UpgradeModal from "@/components/upgrade-modal";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [scans, setScans] = useState<Scan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
 
   // Fetch scan history on component mount
   useEffect(() => {
@@ -46,9 +50,23 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen p-4 md:p-8 bg-[#ffe26d]">
       <div className="w-full max-w-4xl mx-auto">
-        <h1 className="text-4xl font-black tracking-tight uppercase mb-8">
-          Your Dashboard
-        </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <h1 className="text-4xl font-black tracking-tight uppercase">
+            Your Dashboard
+          </h1>
+          {user && (
+            <div className="neo-card bg-white flex items-center gap-4 py-2 px-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-4 border-black">
+              <span className="font-bold text-gray-700 text-sm md:text-base">Credits:</span>
+              <span className="text-xl md:text-2xl font-black text-[#FF5757]">{user.credits ?? 0}</span>
+              <button
+                onClick={() => setIsUpgradeOpen(true)}
+                className="neo-button bg-[#00C853] text-white py-1 px-3 text-sm border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5"
+              >
+                Buy Credits
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* SEO Form for new scans */}
         <SeoForm onScanInitiated={handleScanInitiated} />
@@ -94,6 +112,7 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+      <UpgradeModal isOpen={isUpgradeOpen} onClose={() => setIsUpgradeOpen(false)} />
     </main>
   );
 }

@@ -1,5 +1,5 @@
 // report.service.ts
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -67,9 +67,26 @@ export class ReportService {
     }
 
     // 2. CACHE MISS
+    const freshUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+    });
+
+    if (!freshUser || freshUser.credits <= 0) {
+      throw new ForbiddenException(
+        'Insufficient credits. Please purchase scan credits to continue.',
+      );
+    }
+
+    // Deduct 1 credit
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { credits: { decrement: 1 } },
+    });
+
     console.log(
-      `🐌 CACHE MISS. Adding ${normalizedUrl} to BullMQ worker queue...`,
+      `🐌 CACHE MISS. Deducted 1 credit. Adding ${normalizedUrl} to BullMQ worker queue...`,
     );
+
     const scan = await this.prisma.scan.create({
       data: { url, userId: user.id, status: ScanStatus.PENDING },
     });

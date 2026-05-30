@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { ReportModule } from './report/report.module';
 import { CoreModule } from './core/core.module';
+import { BillingModule } from './billing/billing.module';
 import { PrismaService } from './prisma/prisma.service';
 
 @Module({
@@ -27,6 +28,7 @@ import { PrismaService } from './prisma/prisma.service';
     UserModule,
     ReportModule,
     CoreModule,
+    BillingModule,
   ],
   providers: [PrismaService],
 })
