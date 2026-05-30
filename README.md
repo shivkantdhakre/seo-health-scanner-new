@@ -35,6 +35,7 @@ graph TD
 - **Asynchronous Queue Management:** Relies on **BullMQ** and **Redis** to offload long-running Lighthouse API calls to background workers, avoiding gateway timeouts.
 - **Optimized Caching:** Caches compiled SEO reports in-memory (or via Redis) for 24 hours to prevent redundant expensive API hits for identical URLs.
 - **Secure Authentication:** Features local email/password sign-up/login (using `bcrypt` and `passport-jwt`) along with sessionless **Google OAuth 2.0** integration (configured with `state: false` for stateless cookie authentication).
+- **Freemium & Multi-Tier Monetization:** Grants new users 3 free scans. Deducts 1 credit only on Cache Misses (Cache Hits remain free). Integrates Razorpay Standard Checkout for purchasing Starter (5 scans), Pro (12 scans), and Agency (35 scans) bundles, with signature validation and webhook handlers.
 - **Scan History Dashboard:** Displays interactive user history tables, scan statuses (`PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`), and direct links to comprehensive reports.
 
 ---
@@ -125,6 +126,12 @@ FRONTEND_URL="http://localhost:3000"
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 GOOGLE_CALLBACK_URL="http://localhost:3001/auth/google/callback"
+
+# Razorpay Credentials (For Credits Purchase)
+# Obtain from Razorpay Dashboard > Settings > API Keys & Webhooks
+RAZORPAY_KEY_ID="your-razorpay-key-id"
+RAZORPAY_KEY_SECRET="your-razorpay-key-secret"
+RAZORPAY_WEBHOOK_SECRET="your-custom-webhook-secret-phrase"
 ```
 
 #### 2. Frontend Configuration
@@ -132,6 +139,7 @@ Create a `.env.local` file in the `frontend/` directory:
 
 ```env
 NEXT_PUBLIC_API_URL="http://localhost:3001"
+NEXT_PUBLIC_RAZORPAY_KEY_ID="your-razorpay-key-id"
 ```
 
 ---
@@ -214,6 +222,18 @@ npm run test:watch
 ```
 
 ---
+
+## 📄 Deployment (Render setup)
+
+When deploying to Render:
+1. **Database Migration**: Ensure the Render backend service uses this **Build Command** to automatically apply Prisma migrations:
+   ```bash
+   npm run build && npx prisma migrate deploy
+   ```
+2. **Razorpay Webhooks**: Configure a webhook inside your Razorpay Dashboard pointing to:
+   `https://your-backend-api.onrender.com/billing/webhook`
+   Subscribe to the `payment.captured` and `order.paid` events.
+3. **Environment Settings**: Add the environment variables defined in the `.env` template to the Render settings.
 
 ## 📄 License
 
