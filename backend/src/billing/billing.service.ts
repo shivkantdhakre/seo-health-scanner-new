@@ -122,18 +122,43 @@ export class BillingService {
         return { status: 'error', reason: 'Invalid tier' };
       }
 
-      // Provision credits
-      const creditsToProvision = plan.credits;
-      const updatedUser = await this.prisma.user.update({
-        where: { id: userId },
-        data: { credits: { increment: creditsToProvision } },
+      const razorpayOrderId = payload.payload?.order?.entity?.id || payload.payload?.payment?.entity?.order_id;
+      if (!razorpayOrderId) {
+        console.warn('[BillingService] Webhook missing razorpayOrderId. Skipping.');
+        return { status: 'skipped', reason: 'Missing razorpayOrderId' };
+      }
+
+      // Check if this order was already processed
+      const existingTx = await this.prisma.transaction.findUnique({
+        where: { razorpayOrderId }
       });
 
+      if (existingTx) {
+        console.log(`[BillingService] Webhook: Order ${razorpayOrderId} already processed. Skipping double provision.`);
+        return { status: 'success', message: 'Already processed', userId };
+      }
+
+      // Provision credits and record transaction atomically
+      const [updatedUser] = await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id: userId },
+          data: { credits: { increment: plan.credits } },
+        }),
+        this.prisma.transaction.create({
+          data: {
+            razorpayOrderId,
+            tierId,
+            amount: plan.amount,
+            userId,
+          }
+        })
+      ]);
+
       console.log(
-        `🚀 PROVISION SUCCESS: User ${updatedUser.email} has been credited with ${creditsToProvision} scans. New balance: ${updatedUser.credits}`,
+        `🚀 PROVISION SUCCESS: User ${updatedUser.email} has been credited with ${plan.credits} scans. New balance: ${updatedUser.credits}`,
       );
 
-      return { status: 'success', userId, creditsAdded: creditsToProvision };
+      return { status: 'success', userId, creditsAdded: plan.credits };
     }
 
     return { status: 'received', event };
@@ -178,11 +203,36 @@ export class BillingService {
       throw new BadRequestException(`Invalid plan tier: ${tierId}`);
     }
 
-    // Provision credits dynamically
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { credits: { increment: plan.credits } },
+    // Check if this order was already processed
+    const existingTx = await this.prisma.transaction.findUnique({
+      where: { razorpayOrderId }
     });
+
+    if (existingTx) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      console.log(`[BillingService] verifyPaymentSignature: Order ${razorpayOrderId} already processed. Skipping double provision.`);
+      return {
+        success: true,
+        message: 'Already processed',
+        newBalance: user?.credits || 0,
+      };
+    }
+
+    // Provision credits and record transaction atomically
+    const [updatedUser] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { credits: { increment: plan.credits } },
+      }),
+      this.prisma.transaction.create({
+        data: {
+          razorpayOrderId,
+          tierId,
+          amount: plan.amount,
+          userId,
+        }
+      })
+    ]);
 
     console.log(
       `🚀 SIGNATURE VERIFIED: User ${updatedUser.email} purchased ${plan.name} (+${plan.credits} credits). New balance: ${updatedUser.credits}`,

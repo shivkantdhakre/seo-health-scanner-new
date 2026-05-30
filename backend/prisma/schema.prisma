@@ -15,10 +15,11 @@ model User {
   name       String?
   provider   String   @default("local") // 🆕 Tracks "local" vs "google"
   providerId String?  @unique           // 🆕 Stores the unique Google ID
-  credits    Int      @default(3)       // 🆕 Initial free credits
-  scans      Scan[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  credits      Int           @default(3)       // 🆕 Initial free credits
+  scans        Scan[]
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 }
 
 // Model for each URL scan initiated by a user
@@ -54,4 +55,15 @@ model Report {
   createdAt           DateTime @default(now())
   scanId              String   @unique
   scan                Scan     @relation(fields: [scanId], references: [id])
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  razorpayOrderId String   @unique
+  tierId          String
+  amount          Int
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  status          String   @default("COMPLETED")
+  createdAt       DateTime @default(now())
 }

@@ -64,6 +64,18 @@ const TIERS = [
   },
 ];
 
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") return resolve(false);
+    if ((window as any).Razorpay) return resolve(true);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export default function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
   const { user, checkAuth } = useAuth();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
@@ -77,6 +89,14 @@ export default function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
 
     try {
       console.log(`[UpgradeModal] Initiating purchase for tier: ${tierId}`);
+
+      // Load Razorpay SDK script dynamically
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        setError("Failed to load Razorpay SDK. Please check your internet connection.");
+        setLoadingTier(null);
+        return;
+      }
 
       // 1. Create Order on the Backend
       const { data: order } = await api.post("/billing/order", { tierId });
