@@ -24,13 +24,14 @@ model User {
 
 // Model for each URL scan initiated by a user
 model Scan {
-  id        String     @id @default(cuid())
-  url       String
-  status    ScanStatus @default(PENDING)
-  createdAt DateTime   @default(now())
-  userId    String
-  user      User       @relation(fields: [userId], references: [id])
-  report    Report?    // Each scan will have one report
+  id         String     @id @default(cuid())
+  url        String
+  status     ScanStatus @default(PENDING)
+  isCacheHit Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  report     Report?    // Each scan will have one report
 
   @@index([status])
   @@index([userId, createdAt(sort: Desc)])

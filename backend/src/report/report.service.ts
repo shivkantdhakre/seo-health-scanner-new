@@ -33,21 +33,13 @@ export class ReportService {
         `🚀 CACHE HIT in Service! Returning instantly for ${normalizedUrl}`,
       );
 
-      // RESTORED: Use a single strict transaction for the cache hit
-      const [scan] = await this.prisma.$transaction([
-        this.prisma.scan.create({
-          data: { url, userId: user.id, status: ScanStatus.COMPLETED },
-        }),
-        // We can't access scan.id before it's created in a standard array transaction,
-        // but Prisma allows nested creates which is even cleaner!
-      ]);
-
-      // Actually, the safest transaction pattern for relational data in Prisma is nested creation:
+      // Consolidate into a single nested create to avoid the double Scan creation bug
       const completeScan = await this.prisma.scan.create({
         data: {
           url,
           userId: user.id,
           status: ScanStatus.COMPLETED,
+          isCacheHit: true, // Mark definitive cache hit
           report: {
             create: {
               performanceScore: cachedReport.performanceScore,
@@ -88,7 +80,7 @@ export class ReportService {
     );
 
     const scan = await this.prisma.scan.create({
-      data: { url, userId: user.id, status: ScanStatus.PENDING },
+      data: { url, userId: user.id, status: ScanStatus.PENDING, isCacheHit: false },
     });
 
     // 3. TOSS TO BACKGROUND WORKER
@@ -188,10 +180,24 @@ export class ReportService {
         secure: false, // Localhost/development fallback
       });
 
-      // Navigate to target URL and wait for network to be idle
-      await page.goto(targetUrl, {
-        waitUntil: 'networkidle0',
+      // 1. Create a special export URL with our secret query parameter
+      const exportUrl = `${targetUrl}?export=true`;
+
+      // 2. Navigate to the export URL instead of the standard targetUrl
+      await page.goto(exportUrl, {
+        waitUntil: 'networkidle2', // Changed from networkidle0 to be more forgiving
+        timeout: 60000, // Give the worker up to 60 seconds to finish
       });
+
+      // 3. Force Puppeteer to wait until BOTH the data and the dynamic Chart have loaded
+      await page.waitForFunction(
+        () => {
+          const hasText = document.body.innerText.includes('OVERALL SCORE');
+          const hasChart = !!document.querySelector('.recharts-wrapper') || !!document.querySelector('.recharts-surface');
+          return hasText && hasChart;
+        },
+        { timeout: 60000 }
+      );
 
       // Inject CSS to professionalize the report layout, expand all content, disable animations, and hide navigation
       await page.addStyleTag({

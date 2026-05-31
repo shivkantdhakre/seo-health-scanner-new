@@ -1,5 +1,6 @@
 import axios, { AxiosError } from "axios";
-import type { ScanData, Scan, Report, ApiError } from "./types";
+import type { ScanData, Scan, Report } from "./types";
+import { ApiError } from "./types";
 import { env } from "./env";
 
 // Create an Axios instance
@@ -13,28 +14,35 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    const apiError: ApiError = {
-      message: "An unexpected error occurred",
-      status: error.response?.status,
-    };
+    const serverMessage = (error.response?.data as any)?.message;
+    const extractedMessage = Array.isArray(serverMessage)
+      ? serverMessage.join(", ")
+      : typeof serverMessage === "string"
+      ? serverMessage
+      : null;
 
-    if (error.response?.status === 401) {
-      apiError.message = "Authentication required. Please log in.";
-    } else if (error.response?.status === 403) {
-      apiError.message = "Access denied. You do not have permission.";
-    } else if (error.response?.status === 404) {
-      apiError.message = "Resource not found.";
-    } else if (error.response?.status === 429) {
-      apiError.message = "Too many requests. Please try again later.";
-    } else if (error.response?.status && error.response.status >= 500) {
-      apiError.message = "Server error. Please try again later.";
+    let message = "An unexpected error occurred";
+    const status = error.response?.status;
+
+    if (status === 401) {
+      message = extractedMessage || "Authentication required. Please log in.";
+    } else if (status === 403) {
+      message = extractedMessage || "Access denied. You do not have permission.";
+    } else if (status === 404) {
+      message = extractedMessage || "Resource not found.";
+    } else if (status === 429) {
+      message = extractedMessage || "Too many requests. Please try again later.";
+    } else if (status && status >= 500) {
+      message = extractedMessage || "Server error. Please try again later.";
     } else if (error.code === "ECONNABORTED") {
-      apiError.message = "Request timeout. Please try again.";
+      message = "Request timeout. Please try again.";
+    } else if (extractedMessage) {
+      message = extractedMessage;
     } else if (error.message) {
-      apiError.message = error.message;
+      message = error.message;
     }
 
-    return Promise.reject(apiError);
+    return Promise.reject(new ApiError(message, status));
   }
 );
 

@@ -39,6 +39,8 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export function SeoRadarChart({ scores }: SeoRadarChartProps) {
+  const isExportMode = typeof window !== "undefined" && window.location.search.includes("export=true");
+
   const data = [
     { subject: "Performance", A: scores.performance, fullMark: 100 },
     { subject: "Accessibility", A: scores.accessibility, fullMark: 100 },
@@ -74,6 +76,7 @@ export function SeoRadarChart({ scores }: SeoRadarChartProps) {
             strokeWidth={4}
             fill="var(--neo-accent-color, #FFDE59)"
             fillOpacity={0.75}
+            isAnimationActive={!isExportMode}
           />
         </RadarChart>
       </ResponsiveContainer>

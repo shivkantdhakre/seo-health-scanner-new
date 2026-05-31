@@ -11,14 +11,6 @@ import { useAuth } from "@/lib/AuthContext";
 import UpgradeModal from "@/components/upgrade-modal";
 import { ExternalLink, Zap, Globe, TrendingUp } from "lucide-react";
 
-// Helper: determine if a scan was likely a cache hit based on createdAt proximity
-// This is a heuristic — a true cache-hit field would require a backend change
-function wasFast(scan: Scan): boolean {
-  // Scans that went from PENDING to COMPLETED very quickly are likely cache hits
-  // Since we don't have a direct field, we use the presence of a report as a proxy
-  // TODO: add `isCacheHit` boolean to the Scan schema for definitive detection
-  return false; // Intentionally conservative until schema supports it
-}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -120,7 +112,7 @@ export default function DashboardPage() {
             <div className="space-y-3">
               {scans.map((scan, idx) => {
                 const isCompleted = scan.status === "COMPLETED";
-                const isCacheHit = (scan as any).isCacheHit === true;
+                const isCacheHit = scan.isCacheHit === true;
 
                 return (
                   <div

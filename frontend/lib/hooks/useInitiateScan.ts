@@ -1,11 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
 import { initiateScan } from "@/lib/auth";
-import type { ScanData } from "@/lib/types";
+import type { ScanData, ApiError } from "@/lib/types";
 
 export const MIN_SCAN_INTERVAL = 30000; // 30 seconds
 
 export function useInitiateScan() {
-  return useMutation<ScanData, Error, string>({
+  return useMutation<ScanData, ApiError, string>({
     mutationFn: (url: string) => initiateScan(url),
     onError: (error) => {
       console.error("[useInitiateScan] Error:", error);

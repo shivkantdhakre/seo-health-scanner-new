@@ -22,6 +22,7 @@ export interface Scan {
   id: string;
   url: string;
   status: ScanStatus;
+  isCacheHit: boolean;
   createdAt: string;
   report: Report | null;
 }
@@ -76,7 +77,14 @@ export interface LighthouseResult {
   categories: LighthouseCategories;
 }
 
-export interface ApiError {
-  message: string;
+export class ApiError extends Error {
   status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
 }
+
