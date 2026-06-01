@@ -241,11 +241,25 @@ export class ReportProcessor extends WorkerHost {
         data: { status: ScanStatus.PROCESSING },
       });
 
-      // 2. Run both Lighthouse audits concurrently
-      const [mainLighthouse, competitorLighthouse] = await Promise.all([
+      // 2. Run both Lighthouse audits concurrently using Promise.allSettled to prevent fail-fast behavior
+      const [mainResult, compResult] = await Promise.allSettled([
         this.coreService.getLighthouseReport(url),
         this.coreService.getLighthouseReport(competitorUrl),
       ]);
+
+      if (mainResult.status === 'rejected' || compResult.status === 'rejected') {
+        const errors: string[] = [];
+        if (mainResult.status === 'rejected') {
+          errors.push(`Main site error: ${mainResult.reason?.message || mainResult.reason}`);
+        }
+        if (compResult.status === 'rejected') {
+          errors.push(`Competitor site error: ${compResult.reason?.message || compResult.reason}`);
+        }
+        throw new Error(`One or more URLs could not be reached. Details: ${errors.join(' | ')}`);
+      }
+
+      const mainLighthouse = mainResult.value;
+      const competitorLighthouse = compResult.value;
 
       if (!mainLighthouse) throw new Error('Failed to fetch Lighthouse report for main URL.');
       if (!competitorLighthouse) throw new Error('Failed to fetch Lighthouse report for competitor URL.');

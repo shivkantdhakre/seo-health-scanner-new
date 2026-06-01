@@ -5,6 +5,7 @@ import {
   Radar,
   PolarGrid,
   PolarAngleAxis,
+  PolarRadiusAxis,
   ResponsiveContainer,
   Legend,
 } from "recharts";
@@ -47,6 +48,7 @@ export function DualRadarChart({
             dataKey="category"
             tick={{ fontSize: 13, fontWeight: 700, fill: "#111" }}
           />
+          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} />
           <Radar
             name={mainLabel}
             dataKey="main"
