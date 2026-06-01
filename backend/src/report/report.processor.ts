@@ -133,13 +133,18 @@ export class ReportProcessor extends WorkerHost {
       metaTagsDetails,
       contentDetails,
       technicalDetails,
-      isFallback: true, // 🆕 Signal to the frontend that this is a core audit, not full Gemini AI
+      isFallback: true,
     };
   }
   // --- End Helper Methods ---
 
   // This method fires automatically when a new job is added to the queue
-  async process(job: Job<{ scanId: string; url: string }>) {
+  async process(job: Job<{ scanId: string; url: string; competitorUrl?: string }>) {
+    // Branch: if this is a comparison job, delegate to handleComparison
+    if (job.data.competitorUrl) {
+      return this.handleComparison(job as Job<{ scanId: string; url: string; competitorUrl: string }>);
+    }
+
     const { scanId, url } = job.data;
     console.log(`[Worker] Picked up job ${job.id} for URL: ${url}`);
 
@@ -195,11 +200,142 @@ export class ReportProcessor extends WorkerHost {
 
       console.log(`[Worker] Job ${job.id} completed successfully!`);
     } catch (error) {
+      try {
+        const scan = await this.prisma.scan.findUnique({
+          where: { id: scanId },
+          select: { userId: true, isCacheHit: true },
+        });
+        if (scan && !scan.isCacheHit) {
+          await this.prisma.user.update({
+            where: { id: scan.userId },
+            data: { credits: { increment: 1 } },
+          });
+          console.log(`[Worker] Refunded 1 credit to user ${scan.userId} due to scan job failure.`);
+        }
+      } catch (refundError) {
+        console.error('[Worker] Failed to refund credit:', refundError);
+      }
+
       await this.prisma.scan.update({
         where: { id: scanId },
         data: { status: ScanStatus.FAILED },
       });
       console.error(`[Worker] Job ${job.id} failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handles a competitor comparison job.
+   * Runs two Lighthouse calls concurrently, generates Gemini comparison insights,
+   * saves to DB, and caches the result using a sorted symmetric cache key.
+   */
+  private async handleComparison(job: Job<{ scanId: string; url: string; competitorUrl: string }>) {
+    const { scanId, url, competitorUrl } = job.data;
+    console.log(`[Worker] Picked up COMPARISON job ${job.id}: ${url} vs ${competitorUrl}`);
+
+    try {
+      // 1. Update status to PROCESSING
+      await this.prisma.scan.update({
+        where: { id: scanId },
+        data: { status: ScanStatus.PROCESSING },
+      });
+
+      // 2. Run both Lighthouse audits concurrently
+      const [mainLighthouse, competitorLighthouse] = await Promise.all([
+        this.coreService.getLighthouseReport(url),
+        this.coreService.getLighthouseReport(competitorUrl),
+      ]);
+
+      if (!mainLighthouse) throw new Error('Failed to fetch Lighthouse report for main URL.');
+      if (!competitorLighthouse) throw new Error('Failed to fetch Lighthouse report for competitor URL.');
+
+      // 3. Extract main site scores
+      const mainCategories = mainLighthouse.lighthouseResult.categories;
+      const mainScores = {
+        performanceScore: Math.round(mainCategories.performance.score * 100),
+        accessibilityScore: Math.round(mainCategories.accessibility.score * 100),
+        bestPracticesScore: Math.round(mainCategories['best-practices'].score * 100),
+        seoScore: Math.round(mainCategories.seo.score * 100),
+      };
+
+      // 4. Extract competitor scores
+      const compCategories = competitorLighthouse.lighthouseResult.categories;
+      const competitorData = {
+        performance: Math.round(compCategories.performance.score * 100),
+        accessibility: Math.round(compCategories.accessibility.score * 100),
+        bestPractices: Math.round(compCategories['best-practices'].score * 100),
+        seo: Math.round(compCategories.seo.score * 100),
+      };
+
+      // 5. Generate main site AI suggestions (with fallback)
+      let aiSuggestions: GeminiSuggestions;
+      try {
+        aiSuggestions = await this.coreService.getGeminiSuggestions(mainLighthouse);
+      } catch {
+        console.error('[Worker] Gemini single-site suggestions failed, using fallback.');
+        aiSuggestions = this.createBasicSuggestions(mainLighthouse);
+      }
+
+      // 6. Generate Gemini comparison insights (always has safe fallback)
+      const comparisonInsights = await this.coreService.getGeminiComparison(
+        url,
+        mainLighthouse,
+        competitorUrl,
+        competitorLighthouse,
+      );
+
+      const finalReportData = {
+        ...mainScores,
+        lighthouseResult: mainLighthouse as unknown as Prisma.InputJsonValue,
+        aiSuggestions: aiSuggestions as unknown as Prisma.InputJsonValue,
+      };
+
+      // 7. Save everything to DB in a single transaction
+      await this.prisma.$transaction([
+        this.prisma.report.create({ data: { scanId, ...finalReportData } }),
+        this.prisma.scan.update({
+          where: { id: scanId },
+          data: {
+            status: ScanStatus.COMPLETED,
+            competitorData: competitorData as unknown as Prisma.InputJsonValue,
+            comparisonInsights: comparisonInsights as unknown as Prisma.InputJsonValue,
+          },
+        }),
+      ]);
+
+      // 8. Cache the full comparison result using symmetric sorted key (24 hours)
+      const sortedUrls = [url, competitorUrl].sort();
+      const cacheKey = `compare:${sortedUrls[0]}:${sortedUrls[1]}`;
+      await this.cacheManager.set(
+        cacheKey,
+        { ...finalReportData, competitorData, comparisonInsights },
+        86400000,
+      );
+
+      console.log(`[Worker] Comparison job ${job.id} completed successfully!`);
+    } catch (error) {
+      try {
+        const scan = await this.prisma.scan.findUnique({
+          where: { id: scanId },
+          select: { userId: true, isCacheHit: true },
+        });
+        if (scan && !scan.isCacheHit) {
+          await this.prisma.user.update({
+            where: { id: scan.userId },
+            data: { credits: { increment: 2 } },
+          });
+          console.log(`[Worker] Refunded 2 credits to user ${scan.userId} due to comparison job failure.`);
+        }
+      } catch (refundError) {
+        console.error('[Worker] Failed to refund credits:', refundError);
+      }
+
+      await this.prisma.scan.update({
+        where: { id: scanId },
+        data: { status: ScanStatus.FAILED },
+      });
+      console.error(`[Worker] Comparison job ${job.id} failed:`, error);
       throw error;
     }
   }

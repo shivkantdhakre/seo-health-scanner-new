@@ -52,6 +52,15 @@ export const initiateScan = async (url: string): Promise<ScanData> => {
   return response.data;
 };
 
+// Function to initiate a competitor comparison scan (costs 2 credits)
+export const initiateComparison = async (
+  url: string,
+  competitorUrl: string
+): Promise<ScanData> => {
+  const response = await api.post("/report/compare", { url, competitorUrl });
+  return response.data;
+};
+
 // Function to get a specific report
 export const getReport = async (id: string): Promise<Report | null> => {
   const response = await api.get(`/report/${id}`);

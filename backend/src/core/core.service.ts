@@ -28,6 +28,15 @@ export interface GeminiSuggestions {
   technicalDetails: Detail[];
   isFallback?: boolean; // Set to true when Gemini AI is unavailable and core audit fallback was used
 }
+
+export interface ComparisonInsights {
+  winner: 'main' | 'competitor' | 'tie';
+  summary: string;
+  advantages: string[];    // Where the main site beats the competitor
+  weaknesses: string[];   // Where the competitor beats the main site
+  actionPlan: string[];   // Steps for main site to win
+  isFallback?: boolean;   // Set to true when Gemini failed and defaults were used
+}
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
@@ -294,4 +303,128 @@ export class CoreService {
       return fallbackSuggestions;
     }
   }
+
+  /**
+   * Generates a side-by-side comparison analysis between two sites using Gemini AI.
+   */
+  async getGeminiComparison(
+    mainUrl: string,
+    mainData: any,
+    competitorUrl: string,
+    competitorData: any,
+  ): Promise<ComparisonInsights> {
+    const extractScores = (data: any) => {
+      const { categories, audits } = data.lighthouseResult;
+      return {
+        performance: Math.round(categories.performance.score * 100),
+        accessibility: Math.round(categories.accessibility.score * 100),
+        bestPractices: Math.round(categories['best-practices'].score * 100),
+        seo: Math.round(categories.seo.score * 100),
+        fcp: audits['first-contentful-paint']?.displayValue ?? 'N/A',
+        lcp: audits['largest-contentful-paint']?.displayValue ?? 'N/A',
+        tbt: audits['total-blocking-time']?.displayValue ?? 'N/A',
+        cls: audits['cumulative-layout-shift']?.displayValue ?? 'N/A',
+      };
+    };
+
+    const mainScores = extractScores(mainData);
+    const competitorScores = extractScores(competitorData);
+
+    const prompt = `
+You are an expert SEO Consultant. I am providing you with Google Lighthouse audit data for two competing websites.
+
+Main Website: ${mainUrl}
+Competitor Website: ${competitorUrl}
+
+Main Website Scores:
+- Performance: ${mainScores.performance}/100
+- Accessibility: ${mainScores.accessibility}/100
+- Best Practices: ${mainScores.bestPractices}/100
+- SEO: ${mainScores.seo}/100
+- First Contentful Paint: ${mainScores.fcp}
+- Largest Contentful Paint: ${mainScores.lcp}
+- Total Blocking Time: ${mainScores.tbt}
+- Cumulative Layout Shift: ${mainScores.cls}
+
+Competitor Website Scores:
+- Performance: ${competitorScores.performance}/100
+- Accessibility: ${competitorScores.accessibility}/100
+- Best Practices: ${competitorScores.bestPractices}/100
+- SEO: ${competitorScores.seo}/100
+- First Contentful Paint: ${competitorScores.fcp}
+- Largest Contentful Paint: ${competitorScores.lcp}
+- Total Blocking Time: ${competitorScores.tbt}
+- Cumulative Layout Shift: ${competitorScores.cls}
+
+Analyze both datasets and return a STRICT JSON object with the following structure:
+{
+  "winner": "main" | "competitor" | "tie",
+  "summary": "A 2-sentence executive summary of who is performing better overall and why.",
+  "advantages": ["Specific point where Main Website beats the Competitor", "Another advantage..."],
+  "weaknesses": ["Specific point where Competitor beats the Main Website", "Another weakness..."],
+  "actionPlan": ["Concrete step #1 the main site should take to improve", "Step #2..."]
 }
+
+Rules:
+- "winner" must be exactly "main", "competitor", or "tie"
+- "advantages" must have at least 2 items
+- "weaknesses" must have at least 2 items
+- "actionPlan" must have at least 3 concrete, actionable steps
+- DO NOT include markdown formatting or code blocks. Return pure JSON only.
+`;
+
+    const fallback: ComparisonInsights = {
+      winner: mainScores.performance + mainScores.seo >= competitorScores.performance + competitorScores.seo ? 'main' : 'competitor',
+      summary: `${mainUrl} scored ${mainScores.performance} on performance and ${mainScores.seo} on SEO, compared to ${competitorUrl} with ${competitorScores.performance} and ${competitorScores.seo} respectively.`,
+      advantages: [
+        mainScores.performance > competitorScores.performance ? `Higher Performance score (${mainScores.performance} vs ${competitorScores.performance})` : `Higher Accessibility score (${mainScores.accessibility} vs ${competitorScores.accessibility})`,
+        mainScores.seo > competitorScores.seo ? `Higher SEO score (${mainScores.seo} vs ${competitorScores.seo})` : `Higher Best Practices score (${mainScores.bestPractices} vs ${competitorScores.bestPractices})`,
+      ],
+      weaknesses: [
+        mainScores.performance <= competitorScores.performance ? `Lower Performance score (${mainScores.performance} vs ${competitorScores.performance})` : `Lower Accessibility score (${mainScores.accessibility} vs ${competitorScores.accessibility})`,
+        mainScores.seo <= competitorScores.seo ? `Lower SEO score (${mainScores.seo} vs ${competitorScores.seo})` : `Lower Best Practices score (${mainScores.bestPractices} vs ${competitorScores.bestPractices})`,
+      ],
+      actionPlan: [
+        'Audit and optimize your Core Web Vitals, specifically Largest Contentful Paint (LCP) and Total Blocking Time (TBT).',
+        'Ensure all pages have unique meta descriptions and proper heading hierarchies to improve SEO score.',
+        'Review accessibility failures to reach the WCAG AA standard and close the gap with the competitor.',
+      ],
+      isFallback: true,
+    };
+
+    try {
+      const genAI = new GoogleGenerativeAI(this.geminiApiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+
+      const result = await model.generateContent(
+        `${prompt}\n\nIMPORTANT: Respond ONLY with a valid JSON object. Do not include any additional text, markdown formatting, or explanations. The response must start with '{' and end with '}'.`,
+      );
+      const text = result.response.text();
+
+      let jsonString = text.trim();
+      if (text.includes('```')) {
+        const match = text.match(/```(?:json)?([\s\S]*?)```/);
+        if (match?.[1]) jsonString = match[1].trim();
+      }
+      if (!jsonString.startsWith('{')) {
+        const start = jsonString.indexOf('{');
+        if (start !== -1) jsonString = jsonString.substring(start);
+      }
+
+      const parsed = JSON.parse(jsonString);
+      const validWinners = ['main', 'competitor', 'tie'];
+
+      return {
+        winner: validWinners.includes(parsed.winner) ? parsed.winner : fallback.winner,
+        summary: typeof parsed.summary === 'string' ? parsed.summary : fallback.summary,
+        advantages: Array.isArray(parsed.advantages) && parsed.advantages.length > 0 ? parsed.advantages : fallback.advantages,
+        weaknesses: Array.isArray(parsed.weaknesses) && parsed.weaknesses.length > 0 ? parsed.weaknesses : fallback.weaknesses,
+        actionPlan: Array.isArray(parsed.actionPlan) && parsed.actionPlan.length > 0 ? parsed.actionPlan : fallback.actionPlan,
+      };
+    } catch (error) {
+      console.error('[CoreService] getGeminiComparison failed, using fallback:', error);
+      return fallback;
+    }
+  }
+}
+

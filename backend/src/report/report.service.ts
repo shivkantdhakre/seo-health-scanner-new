@@ -1,4 +1,4 @@
-// report.service.ts
+// report.service.ts - Competitor Analysis support included
 import { Inject, Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -91,6 +91,88 @@ export class ReportService {
 
     return scan;
   }
+
+  /**
+   * Initiates a competitor comparison scan for two URLs.
+   * Costs 2 credits. Returns instantly on cache hit (0 credits deducted).
+   */
+  async initiateComparison(url: string, competitorUrl: string, user: User) {
+    const normalizedMain = url.replace(/\/$/, '').toLowerCase();
+    const normalizedCompetitor = competitorUrl.replace(/\/$/, '').toLowerCase();
+
+    // Sorted cache key — symmetric: A vs B === B vs A
+    const sortedUrls = [normalizedMain, normalizedCompetitor].sort();
+    const cacheKey = `compare:${sortedUrls[0]}:${sortedUrls[1]}`;
+
+    // 1. CHECK CACHE FIRST
+    const cachedComparison = (await this.cacheManager.get(cacheKey)) as any;
+    if (cachedComparison) {
+      console.log(`🚀 COMPARISON CACHE HIT! Returning instantly for ${normalizedMain} vs ${normalizedCompetitor}`);
+
+      const completeScan = await this.prisma.scan.create({
+        data: {
+          url,
+          userId: user.id,
+          status: ScanStatus.COMPLETED,
+          isCacheHit: true,
+          isComparison: true,
+          competitorUrl,
+          competitorData: cachedComparison.competitorData as unknown as Prisma.InputJsonValue,
+          comparisonInsights: cachedComparison.comparisonInsights as unknown as Prisma.InputJsonValue,
+          report: {
+            create: {
+              performanceScore: cachedComparison.performanceScore,
+              accessibilityScore: cachedComparison.accessibilityScore,
+              bestPracticesScore: cachedComparison.bestPracticesScore,
+              seoScore: cachedComparison.seoScore,
+              lighthouseResult: cachedComparison.lighthouseResult as unknown as Prisma.InputJsonValue,
+              aiSuggestions: cachedComparison.aiSuggestions as unknown as Prisma.InputJsonValue,
+            },
+          },
+        },
+      });
+
+      return completeScan;
+    }
+
+    // 2. VALIDATE CREDITS — must have at least 2
+    const freshUser = await this.prisma.user.findUnique({ where: { id: user.id } });
+    if (!freshUser || freshUser.credits < 2) {
+      throw new ForbiddenException(
+        'Insufficient credits. You need at least 2 credits for a competitor comparison.',
+      );
+    }
+
+    // 3. DEDUCT 2 CREDITS
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { credits: { decrement: 2 } },
+    });
+
+    console.log(`🐌 COMPARISON CACHE MISS. Deducted 2 credits. Queuing ${normalizedMain} vs ${normalizedCompetitor}...`);
+
+    // 4. CREATE PENDING SCAN RECORD
+    const scan = await this.prisma.scan.create({
+      data: {
+        url,
+        userId: user.id,
+        status: ScanStatus.PENDING,
+        isCacheHit: false,
+        isComparison: true,
+        competitorUrl,
+      },
+    });
+
+    // 5. ENQUEUE BACKGROUND JOB
+    await this.scanQueue.add('analyze-url', {
+      scanId: scan.id,
+      url: normalizedMain,
+      competitorUrl: normalizedCompetitor,
+    });
+
+    return scan;
+  }
+
 
   /**
    * Fetches a specific report by its ID.

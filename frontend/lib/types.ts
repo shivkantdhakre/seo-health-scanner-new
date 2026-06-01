@@ -18,6 +18,22 @@ export interface Report {
 
 export type ScanStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
 
+export interface CompetitorScores {
+  performance: number;
+  accessibility: number;
+  bestPractices: number;
+  seo: number;
+}
+
+export interface ComparisonInsights {
+  winner: "main" | "competitor" | "tie";
+  summary: string;
+  advantages: string[];    // Where the main site beats the competitor
+  weaknesses: string[];   // Where the competitor beats the main site
+  actionPlan: string[];   // Actionable steps for the main site to win
+  isFallback?: boolean;   // True when Gemini failed and defaults were used
+}
+
 export interface Scan {
   id: string;
   url: string;
@@ -25,6 +41,11 @@ export interface Scan {
   isCacheHit: boolean;
   createdAt: string;
   report: Report | null;
+  // Competitor analysis fields
+  isComparison?: boolean;
+  competitorUrl?: string;
+  competitorData?: CompetitorScores;
+  comparisonInsights?: ComparisonInsights;
 }
 
 export interface ScanData {

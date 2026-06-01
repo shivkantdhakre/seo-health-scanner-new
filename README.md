@@ -30,13 +30,18 @@ graph TD
 ## ⚡ Core Features
 
 - **Automated Performance Audits:** Measures Core Web Vitals (First Contentful Paint, Largest Contentful Paint, Total Blocking Time, Cumulative Layout Shift, and Time to Interactive) using Google Lighthouse.
+- **Competitor SEO Comparison (costs 2 credits):** Allows users to compare their site directly with a competitor side-by-side. Performs concurrent Lighthouse audits, maps scores to overlapping radar charts, and generates a structured Gemini AI executive briefing comparing strengths, weaknesses, and a recommended action plan.
 - **AI-Powered SEO Consultant:** Analyzes raw metrics and failed SEO audits using the Google Gemini API (`gemini-flash-latest`) to generate structured, actionable, and user-friendly recommendations.
-- **Server-Side PDF Exporter (Puppeteer):** Generates high-quality A4 PDF reports on the server using a headless browser session. It artificially injects the user's JWT authorization cookie to bypass security gates, disables visual animations, strips brutalist slants/gradient backgrounds, and flattens all tab details for a clean corporate/office report.
+- **Server-Side PDF Exporter (Puppeteer):** Generates high-quality A4 PDF reports on the server using a headless browser session. It artificially injects the user's JWT authorization cookie to bypass security gates, disables visual animations, strips brutalist slants/gradient backgrounds, and flattens all tab details for a clean corporate/office report. **Optimized with a conditional animation toggle (`?export=true`): live web app users enjoy smooth chart animations, while the PDF renderer disables them (`isAnimationActive={!isExportMode}`) and waits for the chart container (`.recharts-wrapper`/`.recharts-surface`) to mount, capturing a fully-drawn static snapshot of the radar chart.**
 - **Asynchronous Queue Management:** Relies on **BullMQ** and **Redis** to offload long-running Lighthouse API calls to background workers, avoiding gateway timeouts.
 - **Optimized Caching:** Caches compiled SEO reports in-memory (or via Redis) for 24 hours to prevent redundant expensive API hits for identical URLs.
 - **Secure Authentication:** Features local email/password sign-up/login (using `bcrypt` and `passport-jwt`) along with sessionless **Google OAuth 2.0** integration (configured with `state: false` for stateless cookie authentication).
-- **Freemium & Multi-Tier Monetization:** Grants new users 3 free scans. Deducts 1 credit only on Cache Misses (Cache Hits remain free). Integrates Razorpay Standard Checkout for purchasing Starter (5 scans), Pro (12 scans), and Agency (35 scans) bundles. **Guaranteed billing idempotency via transaction logging and atomic database updates to prevent double-provisioning.**
+- **Freemium & Multi-Tier Monetization:** Grants new users 3 free scans. Deducts 1 credit on Cache Misses for single scans and 2 credits for competitor comparisons (Cache Hits remain free). Integrates Razorpay Standard Checkout for purchasing Starter (5 scans), Pro (12 scans), and Agency (35 scans) bundles. **Guaranteed billing idempotency via transaction logging and atomic database updates to prevent double-provisioning, with an automated refund system that returns credits instantly if a scan or comparison job fails (e.g., due to competitor website timeouts).**
 - **Scan History Dashboard:** Displays interactive user history tables, scan statuses (`PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`), and direct links to comprehensive reports.
+- **Robust API Error Handling:** Leverages a custom `ApiError` class extending the native JS `Error` object to maintain exact stack traces and prevent empty object logging (`{}`) in Next.js development tools. The frontend Axios interceptor extracts and passes specific, user-friendly exception messages sent by the NestJS backend (such as credit constraints or validation lists) directly to React Query UI elements and toast notifications.
+- **Dynamic Brutalist & Responsive UI/UX:** Built with a premium **Neo-Brutalist** aesthetic featuring custom HSL colors, thick black borders, off-axis offset shadows, and smooth page transition animations (using Framer Motion). Leverages micro-interactions like interactive hover rotation effects, dynamic loading spinner states, live analyzer retry trackers, rate-limiting warnings, and clear toast notifications (via `sonner`) to keep the user informed.
+- **Skeleton Loading & Perceived Performance:** Pre-renders a background structural preview of the final report layout using pulsing card skeletons with staggered CSS animation delays. This is coupled with a foreground active progress overlay that cycles through 9 detailed scan-stage messages, preventing layout flash on fast cache hits and boosting perceived system speed.
+
 
 ---
 
@@ -158,6 +163,16 @@ npx prisma migrate dev --name init
 npx prisma generate
 ```
 
+#### 💡 Managing Credits for Local Testing
+
+By default, new users are created with **3 free credits**. If you run out of credits during local testing:
+1. Run **Prisma Studio** in your terminal inside the `backend/` directory:
+   ```bash
+   npx prisma studio
+   ```
+2. Navigate to the **User** model and manually update the `credits` field of your user account to the desired number.
+
+
 ---
 
 ### Step 4: Run the Application
@@ -177,6 +192,12 @@ cd frontend
 npm run dev
 ```
 The Next.js client will start running on [http://localhost:3000](http://localhost:3000).
+
+---
+
+### Step 5: IDE Integration (Optional)
+
+A `.vscode/settings.json` file is configured at the workspace root to automatically suppress VS Code's built-in CSS warnings for Tailwind CSS v4 custom directives (like `@theme`, `@utility`, and `@apply`) by setting `"css.lint.unknownAtRules": "ignore"`. This provides a clean editor experience when working on standard CSS files.
 
 ---
 
@@ -223,6 +244,31 @@ npm run test:watch
 ```
 
 ---
+
+## ⚙️ Technical Highlights
+
+### 1. Puppeteer + Recharts PDF Export Integration
+
+During PDF generation, rendering interactive SVG charts (like Recharts) in a headless browser (Puppeteer) presents two common challenges:
+- **Dynamic Chunks & Race Conditions**: The radar chart component is dynamically loaded with `ssr: false` to optimize bundle size, causing it to render asynchronously. Standard page-loading listeners like `networkidle` do not guarantee the chart chunk has finished downloading and mounting.
+- **Animation Freeze**: Recharts animates data points on load. Injected PDF print CSS (`animation: none !important`) freezes these transition frames at the start state (scale `0` / opacity `0`), rendering blank charts.
+
+**The Solution:**
+1. **Conditional Export Mode**: The backend Puppeteer worker appends `?export=true` to the URL.
+2. **Dynamic Animation Toggle**: The frontend `<SeoRadarChart />` checks `window.location.search` and dynamically sets `isAnimationActive={!isExportMode}`. Normal users get smooth entry animations, while Puppeteer gets an instantly rendered static chart.
+3. **DOM Waiting**: The backend waits for both the main report metrics (`OVERALL SCORE`) and the chart SVG (`.recharts-wrapper`/`.recharts-surface`) to fully mount before building the PDF.
+
+### 2. Symmetric Competitor Comparison Caching & Dual Radar Chart
+
+Comparing two websites requires concurrent audits, doubling the execution time and backend resource usage. To make this performant and prevent double-charging users for identical comparisons, we designed:
+
+- **Symmetric Redis Caching**: When comparing `Site A` vs `Site B`, we sort the URLs alphabetically to build the cache key (e.g. `compare:adidas.com:nike.com`). Therefore, running `adidas.com` vs `nike.com` or `nike.com` vs `adidas.com` resolves to the exact same cache record. Cache hits return instantly and cost **0 credits** instead of 2.
+- **Concurrent Auditing**: The BullMQ background worker uses `Promise.all` to fetch PageSpeed Insights for both the target and competitor URLs concurrently, speeding up execution and returning results faster.
+- **Overlapping Dual Radar Chart**: A custom `<DualRadarChart />` is used to draw both scores on the same polar plane. The primary site is highlighted in solid green (`#00C853`, `fillOpacity={0.6}`), while the competitor uses a red, semi-transparent dashed polygon (`#FF5757`, `fillOpacity={0.3}`, `strokeDasharray="5 5"`), making it clear who wins in each metric category.
+- **Dedicated Route / UI Split**: Instead of complicating the single-site audit `/results/[id]` path, comparison scans route to `/compare/[id]`, rendering side-by-side matrices (winner-highlighted tables), dual charts, and a structured Gemini AI briefing section (strengths, weaknesses, and a comparison action plan).
+
+---
+
 
 ## 📄 Deployment (Render setup)
 

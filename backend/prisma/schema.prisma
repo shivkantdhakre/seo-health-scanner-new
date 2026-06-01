@@ -24,18 +24,25 @@ model User {
 
 // Model for each URL scan initiated by a user
 model Scan {
-  id         String     @id @default(cuid())
-  url        String
-  status     ScanStatus @default(PENDING)
-  isCacheHit Boolean    @default(false)
-  createdAt  DateTime   @default(now())
-  userId     String
-  user       User       @relation(fields: [userId], references: [id])
-  report     Report?    // Each scan will have one report
+  id                 String     @id @default(cuid())
+  url                String
+  status             ScanStatus @default(PENDING)
+  isCacheHit         Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  userId             String
+  user               User       @relation(fields: [userId], references: [id])
+  report             Report?    // Each scan will have one report
+
+  // --- Competitor Analysis Fields ---
+  isComparison       Boolean    @default(false)      // Marks this as a dual-URL comparison scan
+  competitorUrl      String?                         // The competitor's URL
+  competitorData     Json?                           // Competitor's extracted Lighthouse scores
+  comparisonInsights Json?                           // Gemini's side-by-side analysis results
 
   @@index([status])
   @@index([userId, createdAt(sort: Desc)])
 }
+
 
 enum ScanStatus {
   PENDING

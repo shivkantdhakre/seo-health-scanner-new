@@ -22,6 +22,16 @@ export class ReportController {
     return this.reportService.initiateScan(url, req.user);
   }
 
+  // Endpoint to start a competitor comparison scan (costs 2 credits)
+  @Post('compare')
+  initiateComparison(
+    @Body('url') url: string,
+    @Body('competitorUrl') competitorUrl: string,
+    @Req() req,
+  ) {
+    return this.reportService.initiateComparison(url, competitorUrl, req.user);
+  }
+
   // Endpoint to get a user's scan history
   @Get('history')
   getScanHistory(@Req() req) {
