@@ -15,6 +15,10 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // Enable trust proxy for secure cookies and relative redirect URIs
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+
   // Now this line will work correctly
   app.use(cookieParser());
 
