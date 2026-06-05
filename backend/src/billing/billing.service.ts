@@ -71,9 +71,10 @@ export class BillingService {
         tierId,
         tierName: plan.name,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[BillingService] Razorpay order creation failed:', error);
-      throw new BadRequestException('Failed to create payment order with billing provider.');
+      const details = error.error?.description || error.message || 'Unknown billing provider error';
+      throw new BadRequestException(`Failed to create payment order with billing provider: ${details}`);
     }
   }
 
